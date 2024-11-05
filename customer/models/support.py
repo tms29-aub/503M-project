@@ -1,15 +1,5 @@
 from customer import db, ma
 
-'''
-ticket_id (Primary Key)
-customer_id (Foreign Key to Customers)
-issue_description
-status (e.g., open, closed)
-created_at
-resolved_at
-'''
-
-
 class Support(db.Model):
     ticket_id = db.Column(db.Integer, primary_key=True)
     customer_id = db.Column(db.Integer, db.ForeignKey('customers.customer_id'), nullable=False)

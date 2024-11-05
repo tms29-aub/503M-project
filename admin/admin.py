@@ -19,10 +19,8 @@ app.config['SQLALCHEMY_DATABASE_URI'] = DB_CONFIG
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-
-@app.route('/', methods=['GET'])
-def get_admin_dashboard():
-    pass
+from models.log import Log, log_schema, logs_schema
+from admin import Admin, admin_schema, admins_schema
 
 
 @app.route('/create-admin', methods=['POST'])
@@ -64,16 +62,12 @@ def create_admin():
     # Check if admin exists
     admin = Admin.query.filter_by(admin_id=admin_id).first()
     if admin is None:
-        return jsonify({
-            'message': 'Unauthorized'
-        }), 401
+        return abort(401, "Unauthorized")
 
     required_fields = ['name', 'email', 'phone', 'password', 'inventory_management', 'order_management', 'product_management', 'customer_management', 'customer_support', 'logs', 'reports']
     # Check if all required fields are present
     if not all(field in request.json for field in required_fields):
-        return jsonify({
-            'message': 'Missing required fields'
-        }), 400
+        return abort(400, "Bad request")
 
     # Required Fields
     name = request.json['name']
@@ -90,9 +84,7 @@ def create_admin():
 
     # Check if admin with email already exists
     if Admin.query.filter_by(email=email).first() is not None:
-        return jsonify({
-            'message': 'Admin with email already exists'
-        }), 409
+        return abort(409, "Admin with email already exists")
 
     # Create new admin
     try:
@@ -103,12 +95,45 @@ def create_admin():
         db.session.add(admin_role)
         db.session.commit()
 
-        return jsonify({
-            'message': 'Admin created successfully'
-        }), 201
+        return jsonify(admin_schema.dump(admin)), 201
 
     except Exception as e:
-        return jsonify({
-            'message': 'Internal server error'
-        }), 500
+        return abort(500, "Something went wrong")
+
+@app.route('/logs', methods=['GET'])
+def get_logs():
+    '''
+    Get logs.
+
+    Requires:
+        token (jwt)
+
+    Returns:
+        200: Logs retrieved successfully
+        401: Unauthorized
+        403: Invalid or expired token
+    '''
+
+    token = extract_auth_token(request)
+    if not token:
+        abort(403, "Something went wrong")
+    try:
+        admin_id = decode_token(token)
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        abort(403, "Something went wrong")
+
+    # Check if admin exists
+    admin = Admin.query.filter_by(admin_id=admin_id).first()
+    if admin is None:
+        return abort(401, "Unauthorized")
+    
+    try:
+        logs = Log.query.all()
+        return jsonify({logs_schema.dump(logs)}), 200
+    except:
+        return abort(500, "Something went wrong")
+
+
+
+
 

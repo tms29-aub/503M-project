@@ -1,15 +1,5 @@
 from inventory import db, ma
 
-'''
-report_id (Primary Key)
-product_id (Foreign Key to Products)
-report_date
-turnover_rate
-demand_forecast
-most_popular
-'''
-
-
 class Report(db.Model):
     report_id = db.Column(db.Integer, primary_key=True)
     product_id = db.Column(db.Integer, db.ForeignKey('products.product_id'), nullable=False)

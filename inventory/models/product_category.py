@@ -1,12 +1,5 @@
 from inventory import db, ma
 
-'''
-category_id (Primary Key)
-name
-description
-'''
-
-
 class ProductCategory(db.Model):
     category_id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), nullable=False)
