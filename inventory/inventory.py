@@ -1,10 +1,14 @@
-from flask import Flask, request, jsonify, abort
+from flask import Flask, request, jsonify, abort, flash, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from flask_marshmallow import Marshmallow
+from werkzeug.utils import secure_filename
+import pandas as pd
+import magic
+import os
 
 from secret_key import SECRET_KEY
-from admin.db_config import DB_CONFIG
+from inventory.db_config import DB_CONFIG
 from app import extract_auth_token, decode_token, jwt, datetime
 
 app = Flask(__name__)
@@ -12,7 +16,10 @@ ma = Marshmallow(app)
 CORS(app)
 app.config['SQLALCHEMY_DATABASE_URI'] = DB_CONFIG
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['UPLOAD_FOLDER'] = 'uploads'
 db = SQLAlchemy(app)
+ALLOWED_EXTENSIONS = {'csv'}
+
 
 from models.product import Product, product_schema, products_schema
 from models.product_category import ProductCategory, product_category_schema, product_categories_schema
@@ -569,4 +576,85 @@ def change_price():
         return abort(500, "Something went wrong")
 
 
+def allowed_file_type(file_path):
+    # Use magic to determine the file type
+    mime = magic.Magic(mime=True)
+    file_mime_type = mime.from_file(file_path)
+    return file_mime_type in ['text/csv', 'application/vnd.ms-excel']
 
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def process_csv(filepath):
+    # Load the CSV file into a DataFrame
+    df = pd.read_csv(filepath)
+    
+    # Convert 'created_at' and 'updated_at' to datetime objects
+    df['created_at'] = pd.to_datetime(df['created_at'])
+    df['updated_at'] = pd.to_datetime(df['updated_at'])
+    
+    # Create a list to store Product objects
+    products = []
+    
+    # Iterate over the DataFrame rows and create Product instances
+    for _, row in df.iterrows():
+        product = Product(
+            product_id=row['product_id'],
+            category_id=row['category_id'],
+            name=row['name'],
+            description=row['description'],
+            subcategory=row['subcategory'],
+            price=row['price'],
+            quantity_in_stock=row['quantity_in_stock'],
+            reorder_level=row['reorder_level'],
+            image=row['image'] if pd.notna(row['image']) else None,
+            created_at=row['created_at'],
+            updated_at=row['updated_at']
+        )
+        products.append(product)
+    
+    return products
+
+
+@app.route('/add-products-csv', methods=["POST"])
+def add_products_csv():
+    if 'file' not in request.files:
+        flash('No file part')
+        return redirect(request.url)
+    file = request.files['file']
+    if file.filename == '':
+        flash('No selected file')
+        return redirect(request.url)
+    
+    #Save the file if extention is allowed
+    
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        print("entered secure file name\n")
+        print(filename)
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        
+        try:
+            file.save(filename)  # Save the file
+            print('File successfully saved')
+        except Exception as e:
+            flash(f'Error saving file: {e}')
+            print(f'Error: {e}')
+        
+        
+        
+        # Check the file type using magic
+        if not allowed_file_type(filename):
+            os.remove(filename)
+            print('Invalid file type.')
+            return redirect(request.url)
+        
+        # Process the CSV file
+        products = process_csv(file_path)
+        for p in products:
+            db.session.add(p)
+        db.session.commit()
+        return redirect(url_for('get_products'))
+    else:
+        flash('Invalid file extension.')
+        return redirect(request.url)
