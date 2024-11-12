@@ -8,6 +8,7 @@ from order.db_config import DB_CONFIG
 from app import extract_auth_token, decode_token, jwt, datetime
 
 from admin.models.admin import Admin
+from admin.models.admin_role import AdminRole
 from models.order import Order, order_schema, orders_schema
 from models.order_items import OrderItem, order_item_schema, order_items_schema
 from models.returns import Return, return_schema, returns_schema
@@ -46,6 +47,11 @@ def get_orders():
     admin = Admin.query.filter_by(admin_id=admin_id).first()
     if admin is None:
         return abort(401, "Unauthorized")
+    
+    # Check admin role
+    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
+    if admin_role.order_management == False:
+        return abort(401, "Unauthorized")
 
     try:
         orders = Order.query.all()
@@ -82,6 +88,11 @@ def get_order_items():
     admin = Admin.query.filter_by(admin_id=admin_id).first()
     if admin is None:
         return abort(401, "Unauthorized")  
+    
+    # Check admin role
+    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
+    if admin_role.order_management == False:
+        return abort(401, "Unauthorized")
     
     order_id = request.json['order_id']
 
@@ -126,6 +137,11 @@ def get_returns():
     admin = Admin.query.filter_by(admin_id=admin_id).first()
     if admin is None:
         return abort(401, "Unauthorized")  
+    
+    # Check admin role
+    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
+    if admin_role.order_management == False and admin_role.inventory_management == False:
+        return abort(401, "Unauthorized")
     
     try:
         returns = Return.query.all()
@@ -179,6 +195,11 @@ def refund():
     if admin is None:
         return abort(401, "Unauthorized")
     
+    # Check admin role
+    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
+    if admin_role.order_management == False and admin_role.inventory_management == False:
+        return abort(401, "Unauthorized")
+    
     order_id = request.json['order_id']
 
     try:
@@ -223,6 +244,11 @@ def cancel():
     if admin is None:
         return abort(401, "Unauthorized")
     
+    # Check admin role
+    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
+    if admin_role.order_management == False and admin_role.inventory_management == False:
+        return abort(401, "Unauthorized")
+    
     order_id = request.json['order_id']
 
     try:
@@ -265,6 +291,11 @@ def replace():
     # Check if admin exists
     admin = Admin.query.filter_by(admin_id=admin_id).first()
     if admin is None:
+        return abort(401, "Unauthorized")
+    
+    # Check admin role
+    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
+    if admin_role.order_management == False and admin_role.inventory_management == False:
         return abort(401, "Unauthorized")
     
     order_id = request.json['order_id']

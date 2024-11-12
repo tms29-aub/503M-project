@@ -3,6 +3,7 @@ from admin import db, ma, bcrypt
 class AdminRole(db.Model):
     admin_role_id = db.Column(db.Integer, primary_key=True)
     admin_id = db.Column(db.Integer, db.ForeignKey('admin.admin_id'), nullable=False)
+    admin_management = db.Column(db.Boolean, nullable=False)
     inventory_management = db.Column(db.Boolean, nullable=False)
     order_management = db.Column(db.Boolean, nullable=False)
     product_management = db.Column(db.Boolean, nullable=False)

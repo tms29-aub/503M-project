@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from flask_marshmallow import Marshmallow
 
+from admin.models.admin_role import AdminRole
 from secret_key import SECRET_KEY
 from customer.db_config import DB_CONFIG
 from app import extract_auth_token, decode_token, jwt, datetime
@@ -45,6 +46,11 @@ def get_customers():
     # Check if admin exists
     admin = Admin.query.filter_by(admin_id=admin_id).first()
     if admin is None:
+        return abort(401, "Unauthorized")
+    
+    # Check admin role
+    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
+    if admin_role.customer_management == False:
         return abort(401, "Unauthorized")
 
     try:

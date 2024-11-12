@@ -26,6 +26,7 @@ from models.product_category import ProductCategory, product_category_schema, pr
 from models.report import Report, report_schema, reports_schema
 from models.promotion import Promotion, promotion_schema, promotions_schema
 from admin.models.admin import Admin
+from admin.models.admin_role import AdminRole
 
 
 @app.route('/inventory', methods=['GET'])
@@ -109,6 +110,11 @@ def get_reports():
     if admin is None:
         return abort(401, "Unauthorized")
     
+    # Check admin role
+    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
+    if admin_role.reports == False:
+        return abort(401, "Unauthorized")
+    
     try:        
         reports = Report.query.all()
         return jsonify({reports_schema.dump(reports)}), 200
@@ -116,10 +122,63 @@ def get_reports():
         return abort(500, "Something went wrong")
     
 
-@app.route('/update', methods=['POST'])
+@app.route('/update-inventory', methods=['POST'])
 def update_inventory():
     '''
-    Update inventory product.
+    Update inventory.
+
+    Requires:
+        token (jwt)
+        product_id (int)
+        quantity (int)
+
+    Returns:
+        200: Inventory updated successfully
+        401: Unauthorized
+        403: Invalid or expired token
+        404: Product not found
+        500: Internal server error
+    '''
+
+    token = extract_auth_token(request)
+    if not token:
+        abort(403, "Something went wrong")
+    try:
+        admin_id = decode_token(token)
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        abort(403, "Something went wrong")
+
+    # Check if admin exists
+    admin = Admin.query.filter_by(admin_id=admin_id).first()
+    if admin is None:
+        return abort(401, "Unauthorized")
+    
+    # Check admin role
+    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
+    if admin_role.inventory_management == False:
+        return abort(401, "Unauthorized")
+    
+    product_id = request.json['product_id']
+    quantity = request.json['quantity']
+
+    try:
+        product = Product.query.filter_by(product_id=product_id).first()
+
+        if product is None:
+            return abort(400, "Product not found")
+        product.quantity = quantity
+        
+        db.session.commit()
+
+        return product_schema.dump(product), 200
+    except:
+        return abort(500, "Something went wrong")
+
+
+@app.route('/update-product', methods=['POST'])
+def update_product():
+    '''
+    Update product.
 
     Requires:
         token (jwt)
@@ -130,7 +189,8 @@ def update_inventory():
         description (str) - optional
         category_id (int) - optional
         promotion_id (int) - optional
-        iamge (str) - optional
+        image (str) - optional
+        subcategory (str) - optional
 
     Returns:
         200: Inventory updated successfully
@@ -151,21 +211,24 @@ def update_inventory():
     # Check if admin exists
     admin = Admin.query.filter_by(admin_id=admin_id).first()
     if admin is None:
-        return jsonify({
-            'message': 'Unauthorized'
-        }), 401
+        return abort(401, "Unauthorized")
+    
+    # Check admin role
+    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
+    if admin_role.product_management == False:
+        return abort(401, "Unauthorized")
     
     # Required fields
     product_id = request.json['product_id']
 
     # Optional fields
     name = request.json.get('name')
-    quantity = request.json.get('quantity')
     price = request.json.get('price')
     description = request.json.get('description')
     category_id = request.json.get('category_id')
     promotion_id = request.json.get('promotion_id')
     image = request.json.get('image')
+    subcategory = request.json.get('subcategory')
 
     try:
         product = Product.query.filter_by(product_id=product_id).first()
@@ -173,12 +236,12 @@ def update_inventory():
         if product is None:
             return abort(400, "Product not found")
         product.name = name
-        product.quantity = quantity
         product.price = price
         product.description = description
         product.category_id = category_id
         product.promotion_id = promotion_id
         product.image = image
+        product.subcategory = subcategory
         
         db.session.commit()
 
@@ -187,7 +250,7 @@ def update_inventory():
         return abort(500, "Something went wrong")
     
 
-@app.route('/delete', methods=['POST'])
+@app.route('/delete-product', methods=['POST'])
 def delete_product():
     '''
     Delete product.
@@ -216,6 +279,11 @@ def delete_product():
     # Check if admin exists
     admin = Admin.query.filter_by(admin_id=admin_id).first()
     if admin is None:
+        return abort(401, "Unauthorized")
+    
+    # Check admin role
+    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
+    if admin_role.product_management == False:
         return abort(401, "Unauthorized")
     
     # Required fields
@@ -268,6 +336,11 @@ def promote_product():
     # Check if admin exists
     admin = Admin.query.filter_by(admin_id=admin_id).first()
     if admin is None:
+        return abort(401, "Unauthorized")
+    
+    # Check admin role
+    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
+    if admin_role.product_management == False:
         return abort(401, "Unauthorized")
     
     # Required fields
@@ -336,6 +409,11 @@ def add_product():
     if admin is None:
         return abort(401, "Unauthorized")
     
+    # Check admin role
+    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
+    if admin_role.product_management == False:
+        return abort(401, "Unauthorized")
+    
     # Required fields
     required_fields = ['name', 'quantity', 'price', 'description', 'category_id', 'promotion_id', 'image', 'subcategory']
     for field in required_fields:
@@ -402,6 +480,11 @@ def add_category():
     if admin is None:
         return abort(401, "Unauthorized")
     
+    # Check admin role
+    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
+    if admin_role.product_management == False:
+        return abort(401, "Unauthorized")
+    
     # Required fields
     required_fields = ['name', 'description']
     for field in required_fields:
@@ -450,6 +533,11 @@ def delete_category():
     # Check if admin exists
     admin = Admin.query.filter_by(admin_id=admin_id).first()
     if admin is None:
+        return abort(401, "Unauthorized")
+    
+    # Check admin role
+    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
+    if admin_role.product_management == False:
         return abort(401, "Unauthorized")
     
     # Required fields
@@ -504,6 +592,11 @@ def delete_promotion():
     if admin is None:
         return abort(401, "Unauthorized")
     
+    # Check admin role
+    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
+    if admin_role.product_management == False:
+        return abort(401, "Unauthorized")
+    
     # Required fields
     promotion_id = request.json['promotion_id']
 
@@ -553,6 +646,11 @@ def change_price():
     if admin is None:
         return abort(401, "Unauthorized")
     
+    # Check admin role
+    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
+    if admin_role.product_management == False:
+        return abort(401, "Unauthorized")
+    
     # Required fields
     required_fields = ['product_id', 'price']
     for field in required_fields:
@@ -586,6 +684,9 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def process_csv(filepath):
+    '''
+    Process a CSV file and return a list of Product instances.
+    '''
     # Load the CSV file into a DataFrame
     df = pd.read_csv(filepath)
     
@@ -618,6 +719,39 @@ def process_csv(filepath):
 
 @app.route('/add-products-csv', methods=["POST"])
 def add_products_csv():
+    '''
+    Add products from CSV.
+
+    Requires:
+        token (jwt)
+        file (csv)
+
+    Returns:
+        200: Products added successfully
+        400: Bad request
+        401: Unauthorized
+        403: Invalid or expired token
+        500: Internal server error
+    '''
+
+    token = extract_auth_token(request)
+    if not token:
+        abort(403, "Something went wrong")
+    try:
+        admin_id = decode_token(token)
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        abort(403, "Something went wrong")
+
+    # Check if admin exists
+    admin = Admin.query.filter_by(admin_id=admin_id).first()
+    if admin is None:
+        return abort(401, "Unauthorized")
+    
+    # Check admin role
+    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
+    if admin_role.product_management == False:
+        return abort(401, "Unauthorized")
+    
     if 'file' not in request.files:
         flash('No file part')
         return redirect(request.url)

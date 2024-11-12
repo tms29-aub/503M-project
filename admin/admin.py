@@ -63,6 +63,11 @@ def create_admin():
     admin = Admin.query.filter_by(admin_id=admin_id).first()
     if admin is None:
         return abort(401, "Unauthorized")
+    
+    # Check admin role
+    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
+    if admin_role.admin_management == False:
+        return abort(401, "Unauthorized")
 
     required_fields = ['name', 'email', 'phone', 'password', 'inventory_management', 'order_management', 'product_management', 'customer_management', 'customer_support', 'logs', 'reports']
     # Check if all required fields are present
@@ -125,6 +130,11 @@ def get_logs():
     # Check if admin exists
     admin = Admin.query.filter_by(admin_id=admin_id).first()
     if admin is None:
+        return abort(401, "Unauthorized")
+    
+    # Check admin role
+    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
+    if admin_role.logs == False:
         return abort(401, "Unauthorized")
     
     try:
