@@ -23,7 +23,7 @@ def decode_token(token):
 
 def create_token(user_id):
     """
-    Create a user token that expires in 4 days.
+    Create a user token.
 
     Requires:
         user id (int)
