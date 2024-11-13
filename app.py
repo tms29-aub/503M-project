@@ -7,11 +7,7 @@ def extract_auth_token(authenticated_request):
     '''
     Extract Authentication Token.
     '''
-    auth_header = authenticated_request.headers.get('Authorization')
-    if auth_header:
-        return auth_header.split(" ")[1]
-    else:
-        return None
+    return authenticated_request.cookies.get('jwt')
 
 
 def decode_token(token):
@@ -19,7 +15,7 @@ def decode_token(token):
     Decode Authentication Token.
     '''
     payload = jwt.decode(token, SECRET_KEY, 'HS256')
-    return payload['sub']
+    return payload['id']
 
 def create_token(user_id):
     """
@@ -34,7 +30,7 @@ def create_token(user_id):
     
     payload = {
         'iat': datetime.datetime.utcnow(),
-        'sub': user_id
+        'id': user_id
     }
     return jwt.encode(
         payload,
