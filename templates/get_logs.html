@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Get Logs</title>
+</head>
+<body>
+    <h1>Get Logs</h1>
+    <button type="button" onclick="getLogs()">Fetch Logs</button>
+    <div id="logsOutput"></div>
+
+    <script>   
+        async function getLogs() {
+            const token = prompt("Please enter your JWT token:");
+
+            const response = await fetch('/logs', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            const result = document.getElementById("logsOutput");
+            if (response.status === 200) {
+                const logs = await response.json();
+                result.innerHTML = `<pre>${JSON.stringify(logs, null, 2)}</pre>`;
+            } else {
+                const errorText = await response.text();
+                result.innerHTML = `Error: ${errorText}`;
+            }
+        }
+    </script>
+</body>
+</html>

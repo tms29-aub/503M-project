@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Management</title>
+</head>
+<body>
+
+    <h1>Customer Management Dashboard</h1>
+
+    <!-- Get Customers Section -->
+    <h2>Retrieve Customer Data</h2>
+    <button type="button" onclick="getCustomers()">Fetch Customers</button>
+    <div id="customersOutput"></div>
+
+    <script>
+        async function getCustomers() {
+            const token = prompt("Please enter your JWT token:");
+
+            const response = await fetch('/customers', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            const result = document.getElementById("customersOutput");
+            if (response.status === 200) {
+                const data = await response.json();
+                result.innerHTML = `
+                    <h3>Customers:</h3>
+                    <pre>${JSON.stringify(data.customers, null, 2)}</pre>
+                    <h3>Support:</h3>
+                    <pre>${JSON.stringify(data.support, null, 2)}</pre>
+                    <h3>Wishlist:</h3>
+                    <pre>${JSON.stringify(data.wishlist, null, 2)}</pre>
+                `;
+            } else {
+                const errorText = await response.text();
+                result.innerHTML = `Error: ${errorText}`;
+            }
+        }
+    </script>
+
+</body>
+</html>
