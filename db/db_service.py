@@ -65,18 +65,18 @@ admins_schema = AdminSchema(many=True)
 # Log
 class Log(db.Model):
     log_id = db.Column(db.Integer, primary_key=True)
-    admin_id = db.Column(db.Integer, db.ForeignKey('admin.admin_id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('admin.admin_id'), nullable=False)
     timestamp = db.Column(db.DateTime, nullable=False)
     details = db.Column(db.String(80), nullable=False)
     action = db.Column(db.String(80), nullable=False)
 
-    def __init__(self, admin_id, timestamp, details, action):
-        super(Log, self).__init__(admin_id=admin_id, timestamp=timestamp, details=details, action=action)
+    def __init__(self, user_id, timestamp, details, action):
+        super(Log, self).__init__(user_id=user_id, timestamp=timestamp, details=details, action=action)
 
 class LogSchema(ma.Schema):
     class Meta:
         model = Log
-        fields = ('log_id', 'admin_id', 'timestamp', 'details', 'action')  
+        fields = ('log_id', 'user_id', 'timestamp', 'details', 'action')  
 
 log_schema = LogSchema()
 logs_schema = LogSchema(many=True)
@@ -323,7 +323,7 @@ def add_admin():
         admin = Admin(name=data['name'], email=data['email'], password=data['password'], phone=data['phone'])
 
         log_detail = f'{admin.name} is now an admin'
-        log = Log(admin_id=admin.admin_id, timestamp=datetime.now(), details=log_detail, action='CREATE ADMIN')
+        log = Log(user_id=admin.admin_id, timestamp=datetime.now(), details=log_detail, action='CREATE ADMIN')
         
         db.session.add(admin)
         db.session.add(log)
@@ -351,7 +351,7 @@ def add_admin_role():
     )
     admin = Admin.query.filter_by(admin_id=data['admin_id']).first()
     log_details = f'{admin.name} roles updated'
-    log = Log(admin_id=admin.admin_id, timestamp=datetime.now(), details=log_details, action='UPDATE ADMIN ROLES')
+    log = Log(user_id=admin.admin_id, timestamp=datetime.now(), details=log_details, action='UPDATE ADMIN ROLES')
 
     db.session.add(admin_role)
     db.session.commit()
@@ -479,7 +479,7 @@ def update_product(product_id):
         product.subcategory = data['subcategory']
 
         log_details = f'Updated product {product.name}'
-        log = Log(admin_id=product.admin_id, timestamp=datetime.now(), details=log_details, action='UPDATE PRODUCT')
+        log = Log(user_id=product.admin_id, timestamp=datetime.now(), details=log_details, action='UPDATE PRODUCT')
         
         db.session.add(log)
         db.session.commit()
@@ -497,7 +497,7 @@ def delete_product(product_id):
             return abort(404, "Product not found")
         
         log_details = f'Deleted product {product.name}'
-        log = Log(admin_id=product.admin_id, timestamp=datetime.now(), details=log_details, action='DELETE PRODUCT')
+        log = Log(user_id=product.admin_id, timestamp=datetime.now(), details=log_details, action='DELETE PRODUCT')
         
         db.session.add(log)
         db.session.delete(product)
@@ -526,7 +526,7 @@ def add_product():
         product = Product(category_id=category_id, name=name, quantity_in_stock=quantity, price=price, description=description, promotion_id=promotion_id, image=image, subcategory=subcategory, created_at=datetime.now(), updated_at=datetime.now())
 
         log_details = f'Added product {name}'
-        log = Log(admin_id=category.admin_id, timestamp=datetime.now(), details=log_details, action='ADD PRODUCT')
+        log = Log(user_id=category.admin_id, timestamp=datetime.now(), details=log_details, action='ADD PRODUCT')
         
         db.session.add(log)
         db.session.add(product)
@@ -550,7 +550,7 @@ def add_category():
         category = ProductCategory(name=name, description=description)
 
         log_details = f'Added category {name}'
-        log = Log(admin_id=category.admin_id, timestamp=datetime.now(), details=log_details, action='ADD CATEGORY')
+        log = Log(user_id=category.admin_id, timestamp=datetime.now(), details=log_details, action='ADD CATEGORY')
         
         db.session.add(log)
         db.session.add(category)
@@ -570,7 +570,7 @@ def delete_category():
         if category is None:
             return abort(400, "Category not found")
 
-        log = Log(admin_id=category.admin_id, timestamp=datetime.now(), details=f'Deleted category {category.name}', action='DELETE CATEGORY')
+        log = Log(user_id=category.admin_id, timestamp=datetime.now(), details=f'Deleted category {category.name}', action='DELETE CATEGORY')
         
         db.session.add(log)
         
@@ -689,7 +689,7 @@ def refund(order_id):
         order.status = "refunded"
 
         log_details = f'Refunded order {order.order_id}'
-        log = Log(admin_id=order.customer_id, timestamp=datetime.now(), details=log_details, action='REFUND ORDER')
+        log = Log(user_id=order.customer_id, timestamp=datetime.now(), details=log_details, action='REFUND ORDER')
         
         db.session.add(log)
         db.session.commit()
@@ -709,7 +709,7 @@ def cancel_order(order_id):
         order.status = "canceled"
         
         log_details = f'Canceled order {order.order_id}'
-        log = Log(admin_id=order.customer_id, timestamp=datetime.now(), details=log_details, action='CANCEL ORDER')
+        log = Log(user_id=order.customer_id, timestamp=datetime.now(), details=log_details, action='CANCEL ORDER')
         
         db.session.add(log)
         db.session.commit()
@@ -731,7 +731,7 @@ def replace_order(order_id):
         ## PLACE NEW ORDER HERE
         
         log_details = f'Replaced order {order.order_id}'
-        log = Log(admin_id=order.customer_id, timestamp=datetime.now(), details=log_details, action='REPLACE ORDER')
+        log = Log(user_id=order.customer_id, timestamp=datetime.now(), details=log_details, action='REPLACE ORDER')
         
         db.session.add(log)
         db.session.commit()
