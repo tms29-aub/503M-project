@@ -295,6 +295,100 @@ class ReturnSchema(ma.Schema):
 return_schema = ReturnSchema()
 returns_schema = ReturnSchema(many=True)
 
+
+# Admin routes
+
+@app.route('/admin/<int:admin_id>', methods=['GET'])
+def get_admin(admin_id):
+    a = Admin.query.filter_by(id=admin_id).first()
+    if not a:
+        return {'message': 'Admin not found'}, 404
+    return jsonify(admin_schema.dump(a))
+
+
+@app.route('/admin/email/<string:email>', methods=['GET'])
+def get_admin_by_email(email):
+    # Query the Admin model by email
+    admin = Admin.query.filter_by(email=email).first()
+    if not admin:
+        return {'message': 'Admin not found'}, 404
+    return jsonify(admin_schema.dump(admin))
+
+
+@app.route('/add-admin', methods=['POST'])
+def add_admin():
+    data = request.get_json()
+    admin = Admin(name=data['name'], email=data['email'], password=data['password'], phone=data['phone'])
+    db.session.add(admin)
+    db.session.commit()
+    return admin_schema.dump(admin), 201
+
+
+
+
+# AdminRole routes
+
+@app.route('/add-admin-role', methods=['POST'])
+def add_admin_role():
+    data = request.get_json()
+    admin_role = AdminRole(
+        admin_id=data['admin_id'],
+        customer_support=data['customer_support'],
+        logs=data['logs'],
+        product_management=data['product_management'],
+        order_management=data['order_management'],
+        customer_management=data['customer_management'],
+        inventory_management=data['inventory_management'],
+        reports=data['reports']
+    )
+    db.session.add(admin_role)
+    db.session.commit()
+    return admin_role_schema.dump(admin_role), 201
+
+
+@app.route('/admin/<int:admin_id>/role', methods=['GET'])
+def get_admin_role(admin_id):
+    ar = AdminRole.query.filter_by(admin_id=admin_id).first()
+    if not ar:
+        return {'message': 'Admin not found'}, 404
+    return jsonify(admin_role_schema.dump(ar))
+
+
+
+@app.route('/get_logs', methods=['GET'])
+def get_logs():
+    logs = Log.query.all()
+    return jsonify(logs_schema.dump(logs))
+
+
+
+# Customer routes
+
+@app.route('/get_customers', methods=['GET'])
+def get_customers():
+    customers = Customer.query.all()
+    return jsonify(customers_schema.dump(customers))
+
+
+# Support routes
+
+@app.route('/get_supports', methods=['GET'])
+def get_supports():
+    # Query all Support entries
+    supports = Support.query.all()
+    return jsonify(supports_schema.dump(supports))
+
+
+# Wishlist routes
+
+@app.route('/get_wishlists', methods=['GET'])
+def get_wishlists():
+    # Query all Wishlist entries
+    wishlists = Wishlist.query.all()
+    return jsonify(wishlists_schema.dump(wishlists))
+
+
+
 # Run Flask App
 if __name__ == '__main__':
     with app.app_context():

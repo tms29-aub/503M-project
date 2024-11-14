@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from flask_marshmallow import Marshmallow
+import requests
 
 from admin.models.admin_role import AdminRole
 from secret_key import SECRET_KEY
@@ -44,19 +45,35 @@ def get_customers():
         abort(403, "Something went wrong")
 
     # Check if admin exists
-    admin = Admin.query.filter_by(admin_id=admin_id).first()
-    if admin is None:
-        return abort(401, "Unauthorized")
+    response = requests.get(f"http://127.0.0.1:5001/admin/{admin_id}")
+    if response.code == 404:
+        return abort(404, "Admin not found")
+    # admin = Admin.query.filter_by(admin_id=admin_id).first()
+    # if admin is None:
+    #     return abort(401, "Unauthorized")
     
     # Check admin role
-    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
-    if admin_role.customer_management == False:
+    response = requests.get(f"http://127.0.0.1:5001/admin/{admin_id}/role")
+    if response.code == 404:
+        return abort(404, "Admin not found")
+    
+    admin_role = response.json()
+    if admin_role['customer_management'] == False:
         return abort(401, "Unauthorized")
+    # admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
+    # if admin_role.customer_management == False:
+    #     return abort(401, "Unauthorized")
 
     try:
-        customers = Customer.query.all()
-        support = Support.query.all()
-        wishlist = Wishlist.query.all()
-        return jsonify({'customers': customers_schema.dump(customers), 'support': supports_schema.dump(support), 'wishlist': wishlists_schema.dump(wishlist)}), 200
+        response = requests.get('http://127.0.0.1:5001/get_customers')
+        customers = response.json()
+        # customers = Customer.query.all()
+        response = requests.get('http://127.0.0.1:5001/get_supports')
+        support = response.json()
+        # support = Support.query.all()
+        response = requests.get('http://127.0.0.1:5001/get_wishlists')
+        wishlist = response.json()
+        # wishlist = Wishlist.query.all()
+        return jsonify({'customers': customers, 'support': support, 'wishlist': wishlist}), 200
     except:
         return abort(500, "Something went wrong")

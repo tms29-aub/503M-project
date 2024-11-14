@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from flask_marshmallow import Marshmallow
 from flask_bcrypt import Bcrypt
+import requests
 
 from secret_key import SECRET_KEY
 from admin.db_config import DB_CONFIG
@@ -58,16 +59,30 @@ def create_admin():
         admin_id = decode_token(token)
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
         abort(403, "Something went wrong")
-
-    # Check if admin exists
-    admin = Admin.query.filter_by(admin_id=admin_id).first()
-    if admin is None:
+        
+    response = requests.get(f"http://127.0.0.1:5001/admin/{admin_id}")
+    if response.code == 404:
+        return abort(404, "Admin not found")
+    
+    response = requests.get(f"http://127.0.0.1:5001/admin/{admin_id}/role")
+    if response.code == 404:
+        return abort(404, "Admin not found")
+    
+    admin_role = response.json()
+    if admin_role['admin_management'] == False:
         return abort(401, "Unauthorized")
     
-    # Check admin role
-    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
-    if admin_role.admin_management == False:
-        return abort(401, "Unauthorized")
+    
+
+    # # Check if admin exists
+    # admin = Admin.query.filter_by(admin_id=admin_id).first()
+    # if admin is None:
+    #     return abort(401, "Unauthorized")
+    
+    # # Check admin role
+    # admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
+    # if admin_role.admin_management == False:
+    #     return abort(401, "Unauthorized")
 
     required_fields = ['name', 'email', 'phone', 'password', 'inventory_management', 'order_management', 'product_management', 'customer_management', 'customer_support', 'logs', 'reports']
     # Check if all required fields are present
@@ -88,19 +103,42 @@ def create_admin():
     reports = request.json['reports']
 
     # Check if admin with email already exists
-    if Admin.query.filter_by(email=email).first() is not None:
+    response = requests.get(f"127.0.0.1:5001/admin/email/{email}")
+    if response.status_code == 200:
         return abort(409, "Admin with email already exists")
+    
+    # if Admin.query.filter_by(email=email).first() is not None:
+    #     return abort(409, "Admin with email already exists")
 
     # Create new admin
     try:
-        admin = Admin(name, email, phone, password)
-        admin_role = AdminRole(admin.admin_id, customer_support, logs, product_management, order_management, customer_management, inventory_management, reports)
+        response = requests.post('http://127.0.0.1:5001/add/admin', json={'name': name, 'email': email, 'phone': phone, 'password': password})
+        # admin = Admin(name, email, phone, password)
+        if response.status_code != 201:
+            return abort(500, "Something went wrong")
+        
+        admin_id = response.get('id')
+        response = requests.post('http://127.0.0.1:5001/add-admin-role', json={
+            "admin_id": admin_id,
+            "customer_support": customer_support,
+            "logs": logs,
+            "product_management": product_management,
+            "order_management": order_management,
+            "customer_management": customer_management,
+            "inventory_management": inventory_management,
+            "reports": reports
+        })
+        
+        if response.status_code != 201:
+            return abort(500, "Something went wrong")
 
-        db.session.add(admin)
-        db.session.add(admin_role)
-        db.session.commit()
+        # admin_role = AdminRole(admin_id, customer_support, logs, product_management, order_management, customer_management, inventory_management, reports)
 
-        return jsonify(admin_schema.dump(admin)), 201
+        # db.session.add(admin)
+        # db.session.add(admin_role)
+        # db.session.commit()
+
+        return {'message': "Admin created successfully"}, 201
 
     except Exception as e:
         return abort(500, "Something went wrong")
@@ -128,20 +166,29 @@ def get_logs():
         abort(403, "Something went wrong")
 
     # Check if admin exists
+    response = requests.get(f"http://127.0.0.1:5001/admin/{admin_id}")
     admin = Admin.query.filter_by(admin_id=admin_id).first()
-    if admin is None:
+    if response.status_code != 200:
         return abort(401, "Unauthorized")
     
     # Check admin role
-    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
-    if admin_role.logs == False:
+    response = requests.get(f"http://127.0.0.1:5001/admin/{admin_id}/role")
+    if response.status_code != 200:
+        return abort(500, "Something went wrong")
+    # admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
+    if response.json()['logs'] == False:
         return abort(401, "Unauthorized")
     
-    try:
-        logs = Log.query.all()
-        return jsonify({logs_schema.dump(logs)}), 200
-    except:
+    response = request.get('http://127.0.0.1:5001/get_logs')
+    if response.status_code != 200:
         return abort(500, "Something went wrong")
+    return response.json()
+    
+    # try:
+    #     logs = Log.query.all()
+    #     return jsonify({logs_schema.dump(logs)}), 200
+    # except:
+    #     return abort(500, "Something went wrong")
 
 
 
