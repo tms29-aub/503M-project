@@ -1,13 +1,14 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, abort
 from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
 from flask_bcrypt import Bcrypt
 from enum import Enum
-
+import datetime
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:///503M.db"
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['UPLOAD_FOLDER'] = 'uploads'
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 ma = Marshmallow(app)
@@ -302,7 +303,7 @@ returns_schema = ReturnSchema(many=True)
 def get_admin(admin_id):
     a = Admin.query.filter_by(id=admin_id).first()
     if not a:
-        return {'message': 'Admin not found'}, 404
+        return abort(404, "Admin not found")
     return jsonify(admin_schema.dump(a))
 
 
@@ -311,7 +312,7 @@ def get_admin_by_email(email):
     # Query the Admin model by email
     admin = Admin.query.filter_by(email=email).first()
     if not admin:
-        return {'message': 'Admin not found'}, 404
+        return abort(404, "Admin not found")
     return jsonify(admin_schema.dump(admin))
 
 
@@ -348,12 +349,18 @@ def add_admin_role():
 
 @app.route('/admin/<int:admin_id>/role', methods=['GET'])
 def get_admin_role(admin_id):
-    ar = AdminRole.query.filter_by(admin_id=admin_id).first()
-    if not ar:
-        return {'message': 'Admin not found'}, 404
-    return jsonify(admin_role_schema.dump(ar))
-
-
+    try:
+        admin = Admin.query.filter_by(admin_id=admin_id).first()
+        if not admin:
+            return abort(404, "Admin not found")
+        
+        ar = AdminRole.query.filter_by(admin_id=admin_id).first()
+        if not ar:
+            return abort(404, "Admin role not found")
+        
+        return jsonify(admin_role_schema.dump(ar))
+    except:
+        return abort(500, "Internal server error")
 
 @app.route('/get_logs', methods=['GET'])
 def get_logs():
@@ -388,9 +395,312 @@ def get_wishlists():
     return jsonify(wishlists_schema.dump(wishlists))
 
 
+# Inventory routes
+
+@app.route('/inventory', methods=['GET'])
+def get_inventory():
+    '''
+    Get inventory.
+
+    Returns:
+        200: Inventory retrieved successfully
+        500: Server Error
+    '''
+    
+    try:
+        products = Product.query.all()
+        product_categories = ProductCategory.query.all()
+
+        return jsonify({'products': products_schema.dump(products), 'product_categories': product_categories_schema.dump(product_categories)}), 200
+    except:
+        return abort(500, "Something went wrong")
+
+
+
+@app.route('/products', methods=['GET'])
+def get_products():
+    '''
+    Get products.
+
+    Returns:
+        200: Products retrieved successfully
+        500: Server Error
+    '''
+    
+    try:
+        products = Product.query.all()
+        return jsonify({products_schema.dump(products)}), 200
+    except:
+        return abort(500, "Something went wrong")
+
+
+@app.route('/product/<int:product_id>', methods=['GET'])
+def get_product(product_id):
+    '''
+    Get product.
+
+    Returns:
+        200: Product retrieved successfully
+        404: Product not found
+        500: Server Error
+    '''
+    try:
+        product = Product.query.filter_by(product_id=product_id).first()
+        if not product:
+            return abort(404, "Product not found")
+        return jsonify(product_schema.dump(product))
+    except:
+        return abort(500, "Something went wrong")
+
+@app.route('/product/<int:product_id>', methods=['POST'])
+def update_product(product_id):
+    data = request.get_json()
+    product = Product.query.filter_by(product_id=product_id).first()
+    if not product:
+        return abort(404, "Product not found")
+    
+    try:
+        product.name = data['name']
+        product.quantity += data['quantity']
+        product.price = data['price']
+        product.description = data['description']
+        product.category_id = data['category_id']
+        product.promotion_id = data['promotion_id']
+        product.image = data['image']
+        product.subcategory = data['subcategory']
+        
+        db.session.commit()
+    except:
+        return abort(500, "Something went wrong")
+
+    return product_schema.dump(product)
+
+
+@app.route('/product/<int:product_id>', methods=['DELETE'])
+def delete_product(product_id):
+    try:
+        product = Product.query.filter_by(product_id=product_id).first()
+        if not product:
+            return abort(404, "Product not found")
+        
+        db.session.delete(product)
+        db.session.commit()
+    except:
+        return abort(500, "Something went wrong")
+    
+
+@app.route('/add-product', methods=['POST'])
+def add_product():
+    name = request.json['name']
+    quantity = request.json['quantity']
+    price = request.json['price']
+    description = request.json['description']
+    category_id = request.json['category_id']
+    promotion_id = request.json['promotion_id']
+    image = request.json['image']
+    subcategory = request.json['subcategory']
+
+    try:
+        category = ProductCategory.query.filter_by(category_id=category_id).first()
+
+        if category is None:
+            return abort(400, "Category not found")
+        
+        product = Product(category_id=category_id, name=name, quantity_in_stock=quantity, price=price, description=description, promotion_id=promotion_id, image=image, subcategory=subcategory, created_at=datetime.now(), updated_at=datetime.now())
+
+        db.session.add(product)
+        db.session.commit()
+
+        return product_schema.dump(product), 200  
+    except:
+        return abort(500, "Something went wrong")
+
+
+@app.route('/add-category', methods=['POST'])
+def add_category():
+    name = request.json['name']
+    description = request.json['description']
+
+    try:
+        dup = ProductCategory.query.filter_by(name=name).first()
+        if dup:
+            return abort(400, "Category already exists")
+        
+        category = ProductCategory(name=name, description=description)
+
+        db.session.add(category)
+        db.session.commit()
+
+        return product_category_schema.dump(category), 200
+    except:
+        return abort(500, "Something went wrong")
+
+@app.route('/delete-category', methods=['DELETE'])
+def delete_category():
+    category_id = request.json['category_id']
+
+    try:
+        category = ProductCategory.query.filter_by(category_id=category_id).first()
+
+        if category is None:
+            return abort(400, "Category not found")
+        
+        db.session.delete(category)
+        db.session.commit()
+
+        return product_category_schema.dump(category), 200
+    except:
+        return abort(500, "Something went wrong")
+
+@app.route('/categories', methods=['GET'])
+def get_categories():
+    '''
+    Get categories.
+
+    Returns:
+        200: Categories retrieved successfully
+        500: Server Error
+    '''
+    
+    try:
+        categories = ProductCategory.query.all()
+        return jsonify({product_categories_schema.dump(categories)}), 200
+    except:
+        return abort(500, "Something went wrong")
+    
+
+@app.route('/reports', methods=['GET'])
+def get_reports():
+    '''
+    Get reports.
+
+    Returns:
+        200: Reports retrieved successfully
+        500: Server Error
+    '''
+    
+    try:
+        reports = Report.query.all()
+        return jsonify({reports_schema.dump(reports)}), 200
+    except:
+        return abort(500, "Something went wrong")
+    
+
+@app.route('/orders', methods=['GET'])
+def get_orders():
+    '''
+    Get orders.
+
+    Returns:
+        200: Orders retrieved successfully
+        500: Server Error
+    '''
+    
+    try:
+        orders = Order.query.all()
+        return jsonify(orders_schema.dump(orders)), 200
+    except:
+        return abort(500, "Something went wrong")
+    
+
+@app.route('/order<int:order_id>', methods=['GET'])
+def get_order(order_id):
+    try:
+        order = Order.query.filter_by(order_id=order_id).first()
+
+        if not order:
+            abort(404, 'Order not found')
+
+        return jsonify(order_schema.dump(order)), 200
+
+    except:
+        return abort(500, "Internal server error")
+    
+
+@app.route('/order-items<int:order_id>', methods=['GET'])
+def get_order_items(order_id):
+    try:
+        order = Order.query.filter_by(order_id=order_id).first()
+
+        if not order:
+            abort(404, 'Order not found')
+
+        order_items = OrderItem.query.filter_by(order_id).all()
+
+        return jsonify(order_items_schema.dump(order_items)), 200
+
+    except:
+        return abort(500, "Internal server error")
+
+
+@app.route('/returns', methods=['GET'])
+def get_returns():
+    '''
+    Get returns.
+
+    Returns:
+        200: Returns retrieved successfully
+        500: Server Error
+    '''
+    
+    try:
+        returns = Return.query.all()
+        return jsonify(returns_schema.dump(returns)), 200
+    except:
+        return abort(500, "Something went wrong")
+    
+@app.route('/refund<int:order_id>', methods=['POST'])
+def refund(order_id):
+    try:
+        order = Order.query.filter_by(order_id=order_id).first()
+        
+        if order is None:
+            return abort(404, "Order not found")
+        
+        order.status = "refunded"
+        
+        db.session.commit()
+        
+        return jsonify({order_schema.dump(order)}), 200
+    except:
+        return abort(500, "Internal server error")
+
+@app.route('/cancel-order<int:order_id>', methods=['POST'])
+def cancel_order(order_id):
+    try:
+        order = Order.query.filter_by(order_id=order_id).first()
+        
+        if order is None:
+            return abort(404, "Order not found")
+        
+        order.status = "canceled"
+        
+        db.session.commit()
+        
+        return jsonify({order_schema.dump(order)}), 200
+    except:
+        return abort(500, "Internal server error")
+    
+@app.route('/replace-order<int:order_id>', methods=['POST'])
+def replace_order(order_id):
+    try:
+        order = Order.query.filter_by(order_id=order_id).first()
+        
+        if order is None:
+            return abort(404, "Order not found")
+        
+        order.status = "replaced"
+
+        ## PLACE NEW ORDER HERE
+        
+        db.session.commit()
+        
+        return jsonify({order_schema.dump(order)}), 200
+    except:
+        return abort(500, "Internal server error")
 
 # Run Flask App
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    app.run(debug=True, port=5001)
+    app.run(debug=True, port=3000)

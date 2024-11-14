@@ -3,6 +3,12 @@ from secret_key import SECRET_KEY
 import jwt
 import datetime
 
+DB_PATH = "http://localhost:3000"
+ADMIN_PATH = "http://localhost:5000"
+INVENTORY_PATH = "http://localhost:5001"
+ORDER_PATH = "http://localhost:5002"
+CUSTOMER_PATH = "http://localhost:5003"
+
 def extract_auth_token(authenticated_request):
     '''
     Extract Authentication Token.

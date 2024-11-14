@@ -1,30 +1,15 @@
 from flask import Flask, request, jsonify, abort
-from flask_sqlalchemy import SQLAlchemy
-from flask_cors import CORS
-from flask_marshmallow import Marshmallow
-
+import requests
 from secret_key import SECRET_KEY
-from order.db_config import DB_CONFIG
-from app import extract_auth_token, decode_token, jwt, datetime
-
-from admin.models.admin import Admin
-from admin.models.admin_role import AdminRole
-from models.order import Order, order_schema, orders_schema
-from models.order_items import OrderItem, order_item_schema, order_items_schema
-from models.returns import Return, return_schema, returns_schema
+from app import extract_auth_token, decode_token, jwt, datetime, DB_PATH
 
 app = Flask(__name__)
-ma = Marshmallow(app)
-CORS(app)
-app.config['SQLALCHEMY_DATABASE_URI'] = DB_CONFIG
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
-
 
 @app.route('/orders', methods=['GET'])
 def get_orders():
     '''
-    Gets all orders in database. Must be an Admin
+    Gets all orders in database.
+    Must be an admin with order_management role
 
     Requires:
         token (jwt)
@@ -42,27 +27,27 @@ def get_orders():
         admin_id = decode_token(token)
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
         abort(403, "Something went wrong")
-
-    # Check if admin exists
-    admin = Admin.query.filter_by(admin_id=admin_id).first()
-    if admin is None:
-        return abort(401, "Unauthorized")
     
     # Check admin role
-    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
-    if admin_role.order_management == False:
+    response = requests.get(f"{DB_PATH}/admin/{admin_id}/role")
+    if response.code == 404:
+        return abort(404, "Admin not found")
+    
+    admin_role = response.json()
+    if admin_role['order_management'] == False:
         return abort(401, "Unauthorized")
 
-    try:
-        orders = Order.query.all()
-        return jsonify({orders_schema.dump(orders)}), 200
-    except:
+    response = requests.get(f"{DB_PATH}/orders")
+    if response.code == 500:
         return abort(500, "Internal server error")
+
+    return response.json(), 200
     
 @app.route('/order-items', methods=['GET'])
 def get_order_items():
     '''
-    Get all items of an order. Must be an Admin.
+    Get all items of an order. 
+    Must be an Admin with order_management role
 
     Requires:
         token (jwt)
@@ -83,37 +68,29 @@ def get_order_items():
         admin_id = decode_token(token)
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
         abort(403, "Something went wrong")
-
-    # Check if admin exists
-    admin = Admin.query.filter_by(admin_id=admin_id).first()
-    if admin is None:
-        return abort(401, "Unauthorized")  
     
     # Check admin role
-    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
-    if admin_role.order_management == False:
+    response = requests.get(f"{DB_PATH}/admin/{admin_id}/role")
+    if response.code == 404:
+        return abort(404, "Admin not found")
+    
+    admin_role = response.json()
+    if admin_role['order_management'] == False:
         return abort(401, "Unauthorized")
     
-    order_id = request.json['order_id']
-
-    try:
-        order = Order.query.filter_by(order_id=order_id).first()
-
-        if not order:
-            abort(404, 'Order not found')
-
-        order_items = OrderItem.query.filter_by(order_id).all()
-
-        return jsonify(order_items_schema.dump(order_items)), 200
-
-    except:
+    response = requests.get(f"{DB_PATH}/order-items")
+    if response.code == 500:
         return abort(500, "Internal server error")
+
+    return response.json(), 200
+    
     
 
 @app.route('/returns', methods=['GET'])
 def get_returns():
     '''
-    Get all returns. Must be an Admin.
+    Get all returns. 
+    Must be an Admin with order_management or inventory_management role
 
     Requires:
         token (jwt)
@@ -132,22 +109,21 @@ def get_returns():
         admin_id = decode_token(token)
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
         abort(403, "Something went wrong")
-
-    # Check if admin exists
-    admin = Admin.query.filter_by(admin_id=admin_id).first()
-    if admin is None:
-        return abort(401, "Unauthorized")  
     
     # Check admin role
-    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
-    if admin_role.order_management == False and admin_role.inventory_management == False:
+    response = requests.get(f"{DB_PATH}/admin/{admin_id}/role")
+    if response.code == 404:
+        return abort(404, "Admin not found")
+    
+    admin_role = response.json()
+    if admin_role['order_management'] == False or admin_role['inventory_management'] == False:
         return abort(401, "Unauthorized")
     
-    try:
-        returns = Return.query.all()
-        return jsonify({returns_schema.dump(returns)}), 200
-    except:
+    response = requests.get(f"{DB_PATH}/returns")
+    if response.code == 500:
         return abort(500, "Internal server error")
+
+    return response.json(), 200
     
 
 @app.route('/invoice', methods=['POST'])
@@ -170,7 +146,8 @@ def create_invoice():
 @app.route('/refund', methods=['POST'])
 def refund():
     '''
-    Refund an order. Must be an Admin.
+    Refund an order. 
+    Must be an Admin with order_management or inventory_management role
 
     Requires:
         token (jwt)
@@ -189,37 +166,32 @@ def refund():
         admin_id = decode_token(token)
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
         abort(403, "Something went wrong")
-
-    # Check if admin exists
-    admin = Admin.query.filter_by(admin_id=admin_id).first()
-    if admin is None:
-        return abort(401, "Unauthorized")
     
     # Check admin role
-    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
-    if admin_role.order_management == False and admin_role.inventory_management == False:
+    response = requests.get(f"{DB_PATH}/admin/{admin_id}/role")
+    if response.code == 404:
+        return abort(404, "Admin not found")
+    
+    admin_role = response.json()
+    if admin_role['order_management'] == False or admin_role['inventory_management'] == False:
         return abort(401, "Unauthorized")
     
     order_id = request.json['order_id']
+    
+    response = requests.post(f"{DB_PATH}/refund/{order_id}")
 
-    try:
-        order = Order.query.filter_by(order_id=order_id).first()
-        
-        if order is None:
-            return abort(404, "Order not found")
-        
-        order.status = "refunded"
-        
-        db.session.commit()
-        
-        return jsonify({order_schema.dump(order)}), 200
-    except:
+    if response.code == 500:
         return abort(500, "Internal server error")
+    elif response.code == 404:
+        return abort(404, "Order not found")
+    
+    return response.json(), 200
 
 @app.route('/cancel', methods=['POST'])
 def cancel():
     '''
-    Cancel an order. Must be an Admin.
+    Cancel an order. 
+    Must be an Admin with order_management role
 
     Requires:
         token (jwt)
@@ -239,36 +211,30 @@ def cancel():
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
         abort(403, "Something went wrong")
 
-    # Check if admin exists
-    admin = Admin.query.filter_by(admin_id=admin_id).first()
-    if admin is None:
-        return abort(401, "Unauthorized")
-    
     # Check admin role
-    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
-    if admin_role.order_management == False and admin_role.inventory_management == False:
+    response = requests.get(f"{DB_PATH}/admin/{admin_id}/role")
+    if response.code == 404:
+        return abort(404, "Admin not found")
+    
+    admin_role = response.json()
+    if admin_role['order_management'] == False:
         return abort(401, "Unauthorized")
     
     order_id = request.json['order_id']
-
-    try:
-        order = Order.query.filter_by(order_id=order_id).first()
-        
-        if order is None:
-            return abort(404, "Order not found")
-        
-        order.status = "canceled"
-        
-        db.session.commit()
-        
-        return jsonify({order_schema.dump(order)}), 200
-    except:
+    
+    response = requests.post(f"{DB_PATH}/cancel-order/{order_id}")
+    if response.code == 500:
         return abort(500, "Internal server error")
+    elif response.code == 404:
+        return abort(404, "Order not found")
+    
+    return response.json(), 200
     
 @app.route('/replace', methods=['POST'])
 def replace():
     '''
-    Replace an order. Must be an Admin.
+    Replace an order. 
+    Must be an Admin with order_management role
 
     Requires:
         token (jwt)
@@ -288,33 +254,24 @@ def replace():
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
         abort(403, "Something went wrong")
 
-    # Check if admin exists
-    admin = Admin.query.filter_by(admin_id=admin_id).first()
-    if admin is None:
-        return abort(401, "Unauthorized")
-    
     # Check admin role
-    admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
-    if admin_role.order_management == False and admin_role.inventory_management == False:
+    response = requests.get(f"{DB_PATH}/admin/{admin_id}/role")
+    if response.code == 404:
+        return abort(404, "Admin not found")
+    
+    admin_role = response.json()
+    if admin_role['order_management'] == False:
         return abort(401, "Unauthorized")
     
     order_id = request.json['order_id']
 
-    try:
-        order = Order.query.filter_by(order_id=order_id).first()
-        
-        if order is None:
-            return abort(404, "Order not found")
-        
-        order.status = "replaced"
-
-        ## PLACE NEW ORDER HERE
-        
-        db.session.commit()
-        
-        return jsonify({order_schema.dump(order)}), 200
-    except:
+    response = requests.post(f"{DB_PATH}/replace-order/{order_id}")
+    if response.code == 500:
         return abort(500, "Internal server error")
+    elif response.code == 404:
+        return abort(404, "Order not found")
+    
+    return response.json(), 200
     
 
 
