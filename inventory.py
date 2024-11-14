@@ -4,6 +4,7 @@ from werkzeug.utils import secure_filename
 import pandas as pd
 import magic
 import os
+import re
 
 from secret_key import SECRET_KEY
 from app import extract_auth_token, decode_token, jwt, datetime, DB_PATH
@@ -637,3 +638,92 @@ def add_products_csv():
     else:
         flash('Invalid file extension.')
         return redirect(request.url)
+    
+
+def is_valid_url(url):
+    allowed_domains = ["example.com", "trusted.com"]
+    pattern = re.compile(r"^(http|https)://")
+    
+    # Check URL starts with HTTP/HTTPS
+    if not pattern.match(url):
+        return False
+
+    # Check domain is in whitelist
+    domain = url.split('/')[2]
+    return any(domain.endswith(allowed_domain) for allowed_domain in allowed_domains)
+
+    
+@app.route('/add-products-thirdparty', methods=['POST'])
+def add_products_thirdparty():
+    token = extract_auth_token(request)
+    if not token:
+        abort(403, "Something went wrong")
+    try:
+        admin_id = decode_token(token)
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        abort(403, "Something went wrong")
+
+    # Check if admin exists
+    response = requests.get(f"{DB_PATH}/admin/{admin_id}")
+    if response.code == 404:
+        return abort(404, "Admin not found")
+    
+    # Check admin role
+    response = requests.get(f"{DB_PATH}/admin/{admin_id}/role")
+    if response.code == 404:
+        return abort(404, "Admin not found")
+    
+    admin_role = response.json()
+    if admin_role['product_management'] == False:
+        return abort(401, "Unauthorized")
+    
+    try:
+        # Parse the incoming JSON payload
+        data = request.json
+        link = data.get('link')
+        
+        if not link:
+            return {'message': 'No link provided'}, 400
+
+        if not is_valid_url(link) or "localhost" in link or "127.0.0.1" in link:
+            return {'message': 'No hacking today'}, 400
+        
+        # Fetch the product data from the link
+        response = requests.get(link)
+
+        if response.status_code != 200:
+            return {'message': f'Failed to fetch data from the link. Status code: {response.status_code}'}, 400
+        
+        # Parse the fetched data
+        products = response.json()
+        
+        # Check if products is a list
+        if not isinstance(products, list):
+            return {'message': 'Invalid data format. Expected a list of products.'}, 400
+
+
+        # Loop through each product and add to inventory
+        for product_data in products:
+            product = {
+                "product_id": product_data["product_id"],
+                "category_id": product_data["category_id"],
+                "name": product_data["name"],
+                "description": product_data["description"],
+                "subcategory": product_data["subcategory"],
+                "price": product_data["price"],
+                "quantity_in_stock": product_data["quantity_in_stock"],
+                "reorder_level": product_data["reorder_level"],
+                "image": product_data["image"] if pd.notna(product_data["image"]) else None,
+                "created_at": product_data["created_at"],
+                "updated_at": product_data["updated_at"]
+            }
+            response = requests.post(f'{DB_PATH}/add-product', json=product)
+            if response.status_code != 200:
+                return abort(500, "Something went wrong")
+
+        # Commit all changes to the database
+
+        return {'message': 'Products added successfully'}, 201
+
+    except Exception as e:
+        return {'message': f'An error occurred: {str(e)}'}, 500
