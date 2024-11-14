@@ -319,12 +319,19 @@ def get_admin_by_email(email):
 @app.route('/add-admin', methods=['POST'])
 def add_admin():
     data = request.get_json()
-    admin = Admin(name=data['name'], email=data['email'], password=data['password'], phone=data['phone'])
-    db.session.add(admin)
-    db.session.commit()
-    return admin_schema.dump(admin), 201
+    try:
+        admin = Admin(name=data['name'], email=data['email'], password=data['password'], phone=data['phone'])
 
-
+        log_detail = f'{admin.name} is now an admin'
+        log = Log(admin_id=admin.admin_id, timestamp=datetime.now(), details=log_detail, action='CREATE ADMIN')
+        
+        db.session.add(admin)
+        db.session.add(log)
+        db.session.commit()
+        
+        return admin_schema.dump(admin), 201
+    except:
+        return abort(400, "Bad request")
 
 
 # AdminRole routes
@@ -342,6 +349,10 @@ def add_admin_role():
         inventory_management=data['inventory_management'],
         reports=data['reports']
     )
+    admin = Admin.query.filter_by(admin_id=data['admin_id']).first()
+    log_details = f'{admin.name} roles updated'
+    log = Log(admin_id=admin.admin_id, timestamp=datetime.now(), details=log_details, action='UPDATE ADMIN ROLES')
+
     db.session.add(admin_role)
     db.session.commit()
     return admin_role_schema.dump(admin_role), 201
@@ -366,8 +377,6 @@ def get_admin_role(admin_id):
 def get_logs():
     logs = Log.query.all()
     return jsonify(logs_schema.dump(logs))
-
-
 
 # Customer routes
 
@@ -468,7 +477,11 @@ def update_product(product_id):
         product.promotion_id = data['promotion_id']
         product.image = data['image']
         product.subcategory = data['subcategory']
+
+        log_details = f'Updated product {product.name}'
+        log = Log(admin_id=product.admin_id, timestamp=datetime.now(), details=log_details, action='UPDATE PRODUCT')
         
+        db.session.add(log)
         db.session.commit()
     except:
         return abort(500, "Something went wrong")
@@ -483,6 +496,10 @@ def delete_product(product_id):
         if not product:
             return abort(404, "Product not found")
         
+        log_details = f'Deleted product {product.name}'
+        log = Log(admin_id=product.admin_id, timestamp=datetime.now(), details=log_details, action='DELETE PRODUCT')
+        
+        db.session.add(log)
         db.session.delete(product)
         db.session.commit()
     except:
@@ -508,6 +525,10 @@ def add_product():
         
         product = Product(category_id=category_id, name=name, quantity_in_stock=quantity, price=price, description=description, promotion_id=promotion_id, image=image, subcategory=subcategory, created_at=datetime.now(), updated_at=datetime.now())
 
+        log_details = f'Added product {name}'
+        log = Log(admin_id=category.admin_id, timestamp=datetime.now(), details=log_details, action='ADD PRODUCT')
+        
+        db.session.add(log)
         db.session.add(product)
         db.session.commit()
 
@@ -528,6 +549,10 @@ def add_category():
         
         category = ProductCategory(name=name, description=description)
 
+        log_details = f'Added category {name}'
+        log = Log(admin_id=category.admin_id, timestamp=datetime.now(), details=log_details, action='ADD CATEGORY')
+        
+        db.session.add(log)
         db.session.add(category)
         db.session.commit()
 
@@ -544,6 +569,10 @@ def delete_category():
 
         if category is None:
             return abort(400, "Category not found")
+
+        log = Log(admin_id=category.admin_id, timestamp=datetime.now(), details=f'Deleted category {category.name}', action='DELETE CATEGORY')
+        
+        db.session.add(log)
         
         db.session.delete(category)
         db.session.commit()
@@ -603,7 +632,7 @@ def get_orders():
         return abort(500, "Something went wrong")
     
 
-@app.route('/order<int:order_id>', methods=['GET'])
+@app.route('/order/<int:order_id>', methods=['GET'])
 def get_order(order_id):
     try:
         order = Order.query.filter_by(order_id=order_id).first()
@@ -617,7 +646,7 @@ def get_order(order_id):
         return abort(500, "Internal server error")
     
 
-@app.route('/order-items<int:order_id>', methods=['GET'])
+@app.route('/order-items/<int:order_id>', methods=['GET'])
 def get_order_items(order_id):
     try:
         order = Order.query.filter_by(order_id=order_id).first()
@@ -649,7 +678,7 @@ def get_returns():
     except:
         return abort(500, "Something went wrong")
     
-@app.route('/refund<int:order_id>', methods=['POST'])
+@app.route('/refund/<int:order_id>', methods=['POST'])
 def refund(order_id):
     try:
         order = Order.query.filter_by(order_id=order_id).first()
@@ -658,14 +687,18 @@ def refund(order_id):
             return abort(404, "Order not found")
         
         order.status = "refunded"
+
+        log_details = f'Refunded order {order.order_id}'
+        log = Log(admin_id=order.customer_id, timestamp=datetime.now(), details=log_details, action='REFUND ORDER')
         
+        db.session.add(log)
         db.session.commit()
         
         return jsonify({order_schema.dump(order)}), 200
     except:
         return abort(500, "Internal server error")
 
-@app.route('/cancel-order<int:order_id>', methods=['POST'])
+@app.route('/cancel-order/<int:order_id>', methods=['POST'])
 def cancel_order(order_id):
     try:
         order = Order.query.filter_by(order_id=order_id).first()
@@ -675,13 +708,17 @@ def cancel_order(order_id):
         
         order.status = "canceled"
         
+        log_details = f'Canceled order {order.order_id}'
+        log = Log(admin_id=order.customer_id, timestamp=datetime.now(), details=log_details, action='CANCEL ORDER')
+        
+        db.session.add(log)
         db.session.commit()
         
         return jsonify({order_schema.dump(order)}), 200
     except:
         return abort(500, "Internal server error")
     
-@app.route('/replace-order<int:order_id>', methods=['POST'])
+@app.route('/replace-order/<int:order_id>', methods=['POST'])
 def replace_order(order_id):
     try:
         order = Order.query.filter_by(order_id=order_id).first()
@@ -693,6 +730,10 @@ def replace_order(order_id):
 
         ## PLACE NEW ORDER HERE
         
+        log_details = f'Replaced order {order.order_id}'
+        log = Log(admin_id=order.customer_id, timestamp=datetime.now(), details=log_details, action='REPLACE ORDER')
+        
+        db.session.add(log)
         db.session.commit()
         
         return jsonify({order_schema.dump(order)}), 200
