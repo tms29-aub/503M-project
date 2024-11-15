@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logs Management</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f4f4f4;
+        }
+        .form-section {
+            margin-bottom: 20px;
+        }
+        .form-section label {
+            display: block;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Logs Management</h1>
+
+    <!-- Section: Filters -->
+    <div class="form-section">
+        <h2>Filter Logs</h2>
+        <form id="filterForm">
+            <label for="admin_id">Admin ID:</label>
+            <input type="text" id="admin_id" name="admin_id">
+
+            <label for="start_date">Start Date:</label>
+            <input type="date" id="start_date" name="start_date">
+
+            <label for="end_date">End Date:</label>
+            <input type="date" id="end_date" name="end_date">
+
+            <label for="action">Action:</label>
+            <input type="text" id="action" name="action" placeholder="e.g., CREATE ADMIN, DELETE PRODUCT">
+
+            <button type="button" onclick="fetchLogs()">Apply Filters</button>
+        </form>
+    </div>
+
+    <!-- Section: Logs List -->
+    <div>
+        <h2>Logs List</h2>
+        <button onclick="fetchLogs()">Refresh Logs</button>
+        <table id="logsTable">
+            <thead>
+                <tr>
+                    <th>Log ID</th>
+                    <th>Admin ID</th>
+                    <th>Timestamp</th>
+                    <th>Details</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Logs will be dynamically inserted here -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        async function fetchLogs() {
+            const token = prompt("Enter your JWT token:");
+            const adminId = document.getElementById("admin_id").value;
+            const startDate = document.getElementById("start_date").value;
+            const endDate = document.getElementById("end_date").value;
+            const action = document.getElementById("action").value;
+
+            const queryParams = [];
+            if (adminId) queryParams.push(`admin_id=${adminId}`);
+            if (startDate) queryParams.push(`start_date=${startDate}`);
+            if (endDate) queryParams.push(`end_date=${endDate}`);
+            if (action) queryParams.push(`action=${action}`);
+            const queryString = queryParams.length ? `?${queryParams.join("&")}` : "";
+
+            const response = await fetch(`/logs${queryString}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            const tableBody = document.querySelector("#logsTable tbody");
+            tableBody.innerHTML = ""; // Clear the table
+
+            if (response.ok) {
+                const logs = await response.json();
+                logs.forEach(log => {
+                    const row = document.createElement("tr");
+                    row.innerHTML = `
+                        <td>${log.log_id}</td>
+                        <td>${log.user_id}</td>
+                        <td>${new Date(log.timestamp).toLocaleString()}</td>
+                        <td>${log.details}</td>
+                        <td>${log.action}</td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            } else {
+                alert("Failed to fetch logs.");
+            }
+        }
+    </script>
+</body>
+</html>

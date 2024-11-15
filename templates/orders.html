@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orders Management</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f4f4f4;
+        }
+        .form-section {
+            margin-bottom: 20px;
+        }
+        .form-section label {
+            display: block;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Orders Management</h1>
+
+    <!-- Section: Orders List -->
+    <div>
+        <h2>Orders List</h2>
+        <button onclick="fetchOrders()">Refresh Orders</button>
+        <table id="ordersTable">
+            <thead>
+                <tr>
+                    <th>Order ID</th>
+                    <th>Customer ID</th>
+                    <th>Status</th>
+                    <th>Total Amount</th>
+                    <th>Created At</th>
+                    <th>Updated At</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Orders will be dynamically inserted here -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        async function fetchOrders() {
+            const token = prompt("Enter your JWT token:");
+            const response = await fetch('/orders', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            const tableBody = document.querySelector("#ordersTable tbody");
+            tableBody.innerHTML = ""; // Clear the table
+
+            if (response.ok) {
+                const orders = await response.json();
+                orders.forEach(order => {
+                    const row = document.createElement("tr");
+                    row.innerHTML = `
+                        <td>${order.order_id}</td>
+                        <td>${order.customer_id}</td>
+                        <td>${order.status}</td>
+                        <td>${order.total_amount}</td>
+                        <td>${new Date(order.created_at).toLocaleString()}</td>
+                        <td>${new Date(order.updated_at).toLocaleString()}</td>
+                        <td>
+                            <button onclick="cancelOrder(${order.order_id})">Cancel</button>
+                            <button onclick="refundOrder(${order.order_id})">Refund</button>
+                            <button onclick="replaceOrder(${order.order_id})">Replace</button>
+                        </td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            } else {
+                alert("Failed to fetch orders.");
+            }
+        }
+
+        async function cancelOrder(orderId) {
+            const token = prompt("Enter your JWT token:");
+            const response = await fetch('/cancel', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ order_id: orderId })
+            });
+
+            if (response.ok) {
+                alert("Order canceled successfully!");
+                fetchOrders(); // Refresh the orders list
+            } else {
+                const error = await response.text();
+                alert(`Error: ${error}`);
+            }
+        }
+
+        async function refundOrder(orderId) {
+            const token = prompt("Enter your JWT token:");
+            const response = await fetch('/refund', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ order_id: orderId })
+            });
+
+            if (response.ok) {
+                alert("Order refunded successfully!");
+                fetchOrders(); // Refresh the orders list
+            } else {
+                const error = await response.text();
+                alert(`Error: ${error}`);
+            }
+        }
+
+        async function replaceOrder(orderId) {
+            const token = prompt("Enter your JWT token:");
+            const response = await fetch('/replace', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ order_id: orderId })
+            });
+
+            if (response.ok) {
+                alert("Order replaced successfully!");
+                fetchOrders(); // Refresh the orders list
+            } else {
+                const error = await response.text();
+                alert(`Error: ${error}`);
+            }
+        }
+    </script>
+</body>
+</html>

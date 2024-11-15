@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reports Management</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f4f4f4;
+        }
+        .form-section {
+            margin-bottom: 20px;
+        }
+        .form-section label {
+            display: block;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Reports Management</h1>
+
+    <!-- Section: Filters -->
+    <div class="form-section">
+        <h2>Filter Reports</h2>
+        <form id="filterForm">
+            <label for="product_id">Product ID:</label>
+            <input type="text" id="product_id" name="product_id">
+
+            <label for="report_date">Report Date:</label>
+            <input type="date" id="report_date" name="report_date">
+
+            <button type="button" onclick="fetchReports()">Apply Filters</button>
+        </form>
+    </div>
+
+    <!-- Section: Reports List -->
+    <div>
+        <h2>Reports List</h2>
+        <button onclick="fetchReports()">Refresh Reports</button>
+        <table id="reportsTable">
+            <thead>
+                <tr>
+                    <th>Report ID</th>
+                    <th>Product ID</th>
+                    <th>Turnover Rate</th>
+                    <th>Demand Forecast</th>
+                    <th>Most Popular</th>
+                    <th>Report Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Reports will be dynamically inserted here -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        async function fetchReports() {
+            const token = prompt("Enter your JWT token:");
+            const productId = document.getElementById("product_id").value;
+            const reportDate = document.getElementById("report_date").value;
+
+            const queryParams = [];
+            if (productId) queryParams.push(`product_id=${productId}`);
+            if (reportDate) queryParams.push(`report_date=${reportDate}`);
+            const queryString = queryParams.length ? `?${queryParams.join("&")}` : "";
+
+            const response = await fetch(`/reports${queryString}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            const tableBody = document.querySelector("#reportsTable tbody");
+            tableBody.innerHTML = ""; // Clear the table
+
+            if (response.ok) {
+                const reports = await response.json();
+                reports.forEach(report => {
+                    const row = document.createElement("tr");
+                    row.innerHTML = `
+                        <td>${report.report_id}</td>
+                        <td>${report.product_id}</td>
+                        <td>${report.turnover_rate.toFixed(2)}</td>
+                        <td>${report.demand_forecast}</td>
+                        <td>${report.most_popular}</td>
+                        <td>${new Date(report.report_date).toLocaleDateString()}</td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            } else {
+                alert("Failed to fetch reports.");
+            }
+        }
+    </script>
+</body>
+</html>
