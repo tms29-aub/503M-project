@@ -61,3 +61,6 @@ def get_customers():
         return abort(500, "Internal server error")
 
     return jsonify({'customers': customers, 'support': support, 'wishlist': wishlist}), 200
+
+if __name__ == "__main__":
+    app.run(port=5003)

@@ -13,3 +13,7 @@ def get_logs():
 @app.route('/get-customers', methods=['GET'])
 def get_customers():
     return render_template('get_customers.html')
+
+
+if __name__ == "__main__":
+    app.run(port=5004)

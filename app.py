@@ -8,6 +8,7 @@ ADMIN_PATH = "http://localhost:5000"
 INVENTORY_PATH = "http://localhost:5001"
 ORDER_PATH = "http://localhost:5002"
 CUSTOMER_PATH = "http://localhost:5003"
+FRONTEND_PATH = "http://localhost:5004"
 
 def extract_auth_token(authenticated_request):
     '''

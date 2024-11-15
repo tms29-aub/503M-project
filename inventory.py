@@ -727,3 +727,89 @@ def add_products_thirdparty():
 
     except Exception as e:
         return {'message': f'An error occurred: {str(e)}'}, 500
+
+@app.route('/generate-inventory-reports', methods=['POST'])
+def generate_inventory_reports():
+    '''
+    Generate inventory reports for turnover rate, most popular products, and demand forecast.
+    Requires admin with reports role.
+
+    Returns:
+        200: Inventory report generated successfully.
+        401: Unauthorized
+        500: Internal server error
+    '''
+    token = extract_auth_token(request)
+    if not token:
+        abort(403, "Invalid token")
+    try:
+        admin_id = decode_token(token)
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        abort(403, "Invalid or expired token")
+    
+    # Check admin role
+    response = requests.get(f"{DB_PATH}/admin/{admin_id}/role")
+    if response.status_code != 200 or not response.json():
+        return abort(403, "Unauthorized")
+    
+    admin_role = response.json()
+    if not admin_role.get('reports', False):
+        return abort(401, "Unauthorized")
+    
+    try:
+        # Fetch products and order items
+        products = Product.query.all()
+        order_items = OrderItem.query.all()
+
+        if not products or not order_items:
+            return jsonify({"message": "No data available for generating reports"}), 400
+
+        # Calculate total sales for each product
+        sales_data = {}
+        for item in order_items:
+            if item.product_id not in sales_data:
+                sales_data[item.product_id] = 0
+            sales_data[item.product_id] += item.quantity
+        
+        # Find the most popular product
+        most_popular_product_id = max(sales_data, key=sales_data.get)
+        most_popular_name = next(
+            (product.name for product in products if product.product_id == most_popular_product_id),
+            "Unknown"
+        )
+
+        # Generate report data
+        report_data = []
+        for product in products:
+            turnover_rate = (
+                sales_data.get(product.product_id, 0) /
+                max(product.quantity_in_stock, 1)
+            )
+            demand_forecast = sales_data.get(product.product_id, 0) * 1.05  # Assume 5% growth
+
+            report_data.append({
+                "product_id": product.product_id,
+                "report_date": datetime.now(),
+                "turnover_rate": turnover_rate,
+                "demand_forecast": int(demand_forecast),  # Ensure integer forecast
+                "most_popular": "Yes" if product.product_id == most_popular_product_id else "No"
+            })
+        
+        # Save reports
+        report_objects = [Report(**data) for data in report_data]
+        db.session.bulk_save_objects(report_objects)
+        db.session.commit()
+        
+        return jsonify({
+            "message": "Reports generated successfully",
+            "most_popular_product": most_popular_name,
+            "most_popular_sales": sales_data[most_popular_product_id]
+        }), 200
+    
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return abort(500, "Internal server error")
+
+
+if __name__ == "__main__":
+    app.run(port=5001)
