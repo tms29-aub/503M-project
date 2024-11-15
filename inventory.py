@@ -791,7 +791,7 @@ def generate_inventory_reports():
                 "product_id": product.product_id,
                 "report_date": datetime.now(),
                 "turnover_rate": turnover_rate,
-                "demand_forecast": int(demand_forecast),  # Ensure integer forecast
+                "demand_forecast": int(demand_forecast),
                 "most_popular": "Yes" if product.product_id == most_popular_product_id else "No"
             })
         
