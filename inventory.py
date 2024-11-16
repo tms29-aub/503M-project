@@ -91,8 +91,16 @@ def update_inventory():
     if admin_role['inventory_management'] == False:
         return abort(401, "Unauthorized")
     
+    required_fields = ['product_id', 'quantity']
+    # Check if all required fields are present
+    if not all(field in request.json for field in required_fields):
+        return abort(400, "Bad request")
+    
     product_id = request.json['product_id']
     quantity = request.json['quantity']
+
+    if type(product_id) != int or type(quantity) != int:
+        return abort(400, "Bad request")
 
     response = requests.get(f"{DB_PATH}/product/{product_id}")
     if response.code == 404:
@@ -163,21 +171,19 @@ def update_product():
     image = request.json.get('image')
     subcategory = request.json.get('subcategory')
 
-    response = requests.post(f"{DB_PATH}/product/{product_id}", json={
-        'name': name,
-        'price': price,
-        'description': description,
-        'category_id': category_id,
-        'promotion_id': promotion_id,
-        'image': image,
-        'subcategory': subcategory
-    })
+    if type(product_id) != int:
+        return abort(400, "Bad request")
+    
+    if type(name) != str or type(price) != float or type(description) != str or type(category_id) != int or type(promotion_id) != int or type(image) != str or type(subcategory) != str:
+        return abort(400, "Bad request")
+
+    response = requests.post(f"{DB_PATH}/product/{product_id}", json=request.json)
     if response.code == 500:
         return abort(500, "Something went wrong")
     
     return response.json(), 200
 
-@app.route('/delete-product', methods=['POST'])
+@app.route('/product', methods=['DELETE'])
 def delete_product():
     '''
     Delete product.
@@ -214,7 +220,13 @@ def delete_product():
         return abort(401, "Unauthorized")
     
     # Required fields
+    if 'product_id' not in request.json:
+        return abort(400, "Bad request")
+    
     product_id = request.json['product_id']
+
+    if type(product_id) != int:
+        return abort(400, "Bad request")
 
     # Check if product exists
     response = requests.get(f"{DB_PATH}/product/{product_id}")
@@ -396,6 +408,12 @@ def add_category():
         if field not in request.json:
             return abort(400, "Missing required field")
         
+    name = request.json['name']
+    description = request.json['description']
+
+    if type(name) != str or type(description) != str:
+        return abort(400, "Invalid data type")
+        
     # Add category
     response = requests.post(f"{DB_PATH}/add-category", json=request.json)
     if response.code == 500:
@@ -447,6 +465,11 @@ def delete_category():
     for field in required_fields:
         if field not in request.json:
             return abort(400, "Missing required field")
+        
+    category_id = request.json['category_id']
+
+    if type(category_id) != int:
+        return abort(400, "Invalid data type")
         
     response = requests.post(f"{DB_PATH}/delete-category", json=request.json)
     if response.code == 500:

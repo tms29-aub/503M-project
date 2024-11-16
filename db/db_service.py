@@ -530,7 +530,6 @@ def get_inventory():
         return abort(500, "Something went wrong")
 
 
-
 @app.route('/products', methods=['GET'])
 def get_products():
     '''
@@ -574,6 +573,24 @@ def update_product(product_id):
     if not product:
         return abort(404, "Product not found")
     
+    # Required fields
+    required_fields = ['name', 'quantity', 'price', 'description', 'category_id', 'promotion_id', 'image', 'subcategory']
+    for field in required_fields:
+        if field not in request.json:
+            return abort(400, "Missing required field")
+    
+    name = request.json['name']
+    quantity = request.json['quantity']
+    price = request.json['price']
+    description = request.json['description']
+    category_id = request.json['category_id']
+    promotion_id = request.json['promotion_id']
+    image = request.json['image']
+    subcategory = request.json['subcategory']
+
+    if type(name) != str or type(quantity) != int or type(price) != float or type(description) != str or type(category_id) != int or type(promotion_id) != int or type(image) != str or type(subcategory) != str:
+        return abort(400, "Invalid data type")
+    
     try:
         product.name = data['name']
         product.quantity += data['quantity']
@@ -597,6 +614,14 @@ def update_product(product_id):
 
 @app.route('/product/<int:product_id>', methods=['DELETE'])
 def delete_product(product_id):
+    if 'product_id' not in request.json:
+        return abort(400, "Bad request")
+    
+    product_id = request.json['product_id']
+
+    if type(product_id) != int:
+        return abort(400, "Bad request")
+    
     try:
         product = Product.query.filter_by(product_id=product_id).first()
         if not product:
@@ -614,6 +639,12 @@ def delete_product(product_id):
 
 @app.route('/add-product', methods=['POST'])
 def add_product():
+    # Required fields
+    required_fields = ['name', 'quantity', 'price', 'description', 'category_id', 'promotion_id', 'image', 'subcategory']
+    for field in required_fields:
+        if field not in request.json:
+            return abort(400, "Missing required field")
+        
     name = request.json['name']
     quantity = request.json['quantity']
     price = request.json['price']
@@ -645,8 +676,17 @@ def add_product():
 
 @app.route('/add-category', methods=['POST'])
 def add_category():
+    # Required fields
+    required_fields = ['name', 'description']
+    for field in required_fields:
+        if field not in request.json:
+            return abort(400, "Missing required field")
+        
     name = request.json['name']
     description = request.json['description']
+
+    if type(name) != str or type(description) != str:
+        return abort(400, "Invalid data type")
 
     try:
         dup = ProductCategory.query.filter_by(name=name).first()
@@ -668,7 +708,16 @@ def add_category():
 
 @app.route('/delete-category', methods=['DELETE'])
 def delete_category():
+    # Required fields
+    required_fields = ['category_id']
+    for field in required_fields:
+        if field not in request.json:
+            return abort(400, "Missing required field")
+        
     category_id = request.json['category_id']
+
+    if type(category_id) != int:
+        return abort(400, "Invalid data type")
 
     try:
         category = ProductCategory.query.filter_by(category_id=category_id).first()
@@ -786,6 +835,13 @@ def get_returns():
     
 @app.route('/refund/<int:order_id>', methods=['POST'])
 def refund(order_id):
+    if 'order_id' not in request.json:
+        return abort(400, "Missing order_id")
+    
+    order_id = request.json['order_id']
+
+    if type(order_id) != int:
+        return abort(400, "Invalid order_id")
     try:
         order = Order.query.filter_by(order_id=order_id).first()
         
@@ -806,6 +862,13 @@ def refund(order_id):
 
 @app.route('/cancel-order/<int:order_id>', methods=['POST'])
 def cancel_order(order_id):
+    if 'order_id' not in request.json:
+        return abort(400, "Missing order_id")
+    
+    order_id = request.json['order_id']
+
+    if type(order_id) != int:
+        return abort(400, "Invalid order_id")
     try:
         order = Order.query.filter_by(order_id=order_id).first()
         
@@ -826,6 +889,13 @@ def cancel_order(order_id):
     
 @app.route('/replace-order/<int:order_id>', methods=['POST'])
 def replace_order(order_id):
+    if 'order_id' not in request.json:
+        return abort(400, "Missing order_id")
+    
+    order_id = request.json['order_id']
+
+    if type(order_id) != int:
+        return abort(400, "Invalid order_id")
     try:
         order = Order.query.filter_by(order_id=order_id).first()
         

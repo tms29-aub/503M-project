@@ -176,7 +176,13 @@ def refund():
     if admin_role['order_management'] == False or admin_role['inventory_management'] == False:
         return abort(401, "Unauthorized")
     
+    if 'order_id' not in request.json:
+        return abort(400, "Missing order_id")
+    
     order_id = request.json['order_id']
+
+    if type(order_id) != int:
+        return abort(400, "Invalid order_id")
     
     response = requests.post(f"{DB_PATH}/refund/{order_id}")
 
@@ -220,7 +226,13 @@ def cancel():
     if admin_role['order_management'] == False:
         return abort(401, "Unauthorized")
     
+    if 'order_id' not in request.json:
+        return abort(400, "Missing order_id")
+    
     order_id = request.json['order_id']
+
+    if type(order_id) != int:
+        return abort(400, "Invalid order_id")
     
     response = requests.post(f"{DB_PATH}/cancel-order/{order_id}")
     if response.code == 500:
@@ -263,7 +275,13 @@ def replace():
     if admin_role['order_management'] == False:
         return abort(401, "Unauthorized")
     
+    if 'order_id' not in request.json:
+        return abort(400, "Missing order_id")
+    
     order_id = request.json['order_id']
+
+    if type(order_id) != int:
+        return abort(400, "Invalid order_id")
 
     response = requests.post(f"{DB_PATH}/replace-order/{order_id}")
     if response.code == 500:

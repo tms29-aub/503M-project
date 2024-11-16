@@ -74,6 +74,12 @@ def create_admin():
     logs = request.json['logs']
     reports = request.json['reports']
 
+    if type(name) != str or type(email) != str or type(phone) != int or type(password) != str:
+        return abort(400, "Bad request")
+    
+    if type(inventory_management) != bool or type(order_management) != bool or type(product_management) != bool or type(customer_management) != bool or type(customer_support) != bool or type(logs) != bool or type(reports) != bool:
+        return abort(400, "Bad request")
+
     # Check if admin with email already exists
     response = requests.get(f"{DB_PATH}/admin/email/{email}")
     if response.status_code == 200:
@@ -165,8 +171,16 @@ def login():
         500: Internal server error
     '''
 
+    required_fields = ['email', 'password']
+    # Check if all required fields are present
+    if not all(field in request.json for field in required_fields):
+        return abort(400, "Bad request")
+
     email = request.json['email']
     password = request.json['password']
+
+    if type(email) != str or type(password) != str:
+        return abort(400, "Bad request")
 
     response = requests.get(f"{DB_PATH}/admin/email/{email}")
     if response.status_code != 200:
