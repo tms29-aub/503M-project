@@ -1,15 +1,30 @@
-from flask import Flask, render_template, request, abort
+from flask import Flask, render_template, request, abort, make_response, redirect, url_for
 import requests
-from app import extract_auth_token, decode_token, jwt, DB_PATH
+from app import extract_auth_token, decode_token, jwt, DB_PATH, ADMIN_PATH
+import datetime
 
 app = Flask(__name__)
 
 @app.route('/')
-def home():
-    '''
-    Render the homepage or redirect to the logs page.
-    '''
+def index():
+    return redirect(url_for('login'))
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        response = requests.post(f"{ADMIN_PATH}/admin-login", json={"email": request.get('email'), "password": request.get('password')})
+        if response.status_code == 200:
+            token = jwt.encode({'id': response.json()['id'], 'exp': datetime.datetime.now()+datetime.timedelta(days=1)}, app.config['SECRET_KEY'])
+            resp = make_response(redirect(url_for('logs_page')))
+            resp.set_cookie('jwt', token)
+            return resp
     return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    resp = make_response(redirect(url_for('index')))
+    resp.set_cookie('jwt', '', expires=0)
+    return resp
 
 @app.route('/logs', methods=['GET'])
 def logs_page():

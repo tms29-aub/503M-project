@@ -7,6 +7,17 @@ from app import create_token, extract_auth_token, decode_token, jwt, DB_PATH
 app = Flask(__name__)
 
 
+@app.route('/admin-login', methods=['POST'])
+def admin_login():
+    email = request.json['email']
+    password = request.json['password']
+    response = requests.post(f"{DB_PATH}/admin/authenticate", json={'email': email, 'password': password})
+
+    if response.status_code != 200:
+        return abort(401, "Unauthorized")
+    return response
+
+
 @app.route('/create-admin', methods=['POST'])
 def create_admin():
     '''
