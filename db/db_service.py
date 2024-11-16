@@ -323,9 +323,29 @@ returns_schema = ReturnSchema(many=True)
 
 @app.route('/admin/authenticate', methods=['POST'])
 def authenticate_admin():
-    data = request.get_json()
-    email = data['email']
-    password = data['password']
+    '''
+    Login as Admin.
+
+    Requires:
+        email (str)
+        password (str)
+
+    Returns:
+        200: JWT Token
+        401: Unauthorized
+        500: Internal server error
+    '''
+    required_fields = ['email', 'password']
+    # Check if all required fields are present
+    if not all(field in request.json for field in required_fields):
+        return abort(400, "Bad request")
+
+    email = request.json['email']
+    password = request.json['password']
+
+    if type(email) != str or type(password) != str:
+        return abort(400, "Bad request")
+    
     admin = Admin.query.filter_by(email=email, password=password).first()
     if not admin:
         return abort(401, "Unauthorized")
@@ -333,6 +353,16 @@ def authenticate_admin():
 
 @app.route('/admin/<int:admin_id>', methods=['GET'])
 def get_admin(admin_id):
+    '''
+    Get admin by admin_id
+
+    Requires:
+        admin_id (int)
+
+    Returns:
+        200: Admin
+        404: Admin not found
+    '''
     a = Admin.query.filter_by(id=admin_id).first()
     if not a:
         return abort(404, "Admin not found")
@@ -341,7 +371,16 @@ def get_admin(admin_id):
 
 @app.route('/admin/email/<string:email>', methods=['GET'])
 def get_admin_by_email(email):
-    # Query the Admin model by email
+    '''
+    Get admin by email
+
+    Requires:
+        email (str)
+
+    Returns:
+        200: Admin
+        404: Admin not found
+    '''
     admin = Admin.query.filter_by(email=email).first()
     if not admin:
         return abort(404, "Admin not found")
@@ -350,9 +389,36 @@ def get_admin_by_email(email):
 
 @app.route('/add-admin', methods=['POST'])
 def add_admin():
-    data = request.get_json()
+    '''
+    Create new Admin.
+
+    Requires:
+        name (str)
+        email (str)
+        password (str)
+        phone (int)
+
+    Returns:
+        201: Admin created successfully
+        400: Bad request
+        500: Internal server error
+    '''
+
+    required_fields = ['name', 'email', 'password', 'phone']
+
+    if not all(field in request.json for field in required_fields):
+        return abort(400, "Bad request")
+    
+    name = request.json['name']
+    email = request.json['email']
+    password = request.json['password']
+    phone = request.json['phone']
+    
+    if type(name) != str or type(email) != str or type(password) != str or type(phone) != int:
+        return abort(400, "Bad request")
+    
     try:
-        admin = Admin(name=data['name'], email=data['email'], password=data['password'], phone=data['phone'])
+        admin = Admin(name=name, email=email, password=password, phone=phone)
 
         log_detail = f'{admin.name} is now an admin'
         log = Log(user_id=admin.admin_id, timestamp=datetime.now(), details=log_detail, action='CREATE ADMIN')
@@ -363,33 +429,69 @@ def add_admin():
         
         return admin_schema.dump(admin), 201
     except:
-        return abort(400, "Bad request")
+        return abort(400, "Server Error")
 
 
 # AdminRole routes
 
 @app.route('/add-admin-role', methods=['POST'])
 def add_admin_role():
-    data = request.get_json()
+    '''
+    Create Admin Role for an Admin.
+
+    Requires:
+        admin_id (int)
+        customer_support (bool)
+        logs (bool)
+        product_management (bool)
+        order_management (bool)
+        customer_management (bool)
+        inventory_management (bool)
+        reports (bool)
+
+    Returns:
+        201: Admin Role created successfully
+        400: Bad request
+        500: Internal server error
+    '''
+
+    required_fields = ['admin_id', 'customer_support', 'logs', 'product_management', 'order_management', 'customer_management', 'inventory_management', 'reports']
+
+    if not all(field in request.json for field in required_fields):
+        return abort(400, "Bad request")
+    
+    admin_id = request.json['admin_id']
+    customer_support = request.json['customer_support']
+    logs = request.json['logs']
+    product_management = request.json['product_management']
+    order_management = request.json['order_management']
+    customer_management = request.json['customer_management']
+    inventory_management = request.json['inventory_management']
+    reports = request.json['reports']
+
+    if type(admin_id) != int or type(customer_support) != bool or type(logs) != bool or type(product_management) != bool or type(order_management) != bool or type(customer_management) != bool or type(inventory_management) != bool or type(reports) != bool:
+        return abort(400, "Bad request")
+
     admin_role = AdminRole(
-        admin_id=data['admin_id'],
-        customer_support=data['customer_support'],
-        logs=data['logs'],
-        product_management=data['product_management'],
-        order_management=data['order_management'],
-        customer_management=data['customer_management'],
-        inventory_management=data['inventory_management'],
-        reports=data['reports']
+        admin_id=admin_id,
+        customer_support=customer_support,
+        logs=logs,
+        product_management=product_management,
+        order_management=order_management,
+        customer_management=customer_management,
+        inventory_management=inventory_management,
+        reports=reports
     )
-    admin = Admin.query.filter_by(admin_id=data['admin_id']).first()
+    db.session.add(admin_role)
+
+    admin = Admin.query.filter_by(admin_id=admin_id).first()
+
     log_details = f'{admin.name} roles updated'
     log = Log(user_id=admin.admin_id, timestamp=datetime.now(), details=log_details, action='UPDATE ADMIN ROLES')
-
-    db.session.add(admin_role)
+    db.session.add(log)
+    
     db.session.commit()
     return admin_role_schema.dump(admin_role), 201
-
-
 
 def create_tables_and_populate():
     """Create tables and populate with initial data."""
@@ -487,6 +589,17 @@ def create_tables_and_populate():
 
 @app.route('/admin/<int:admin_id>/role', methods=['GET'])
 def get_admin_role(admin_id):
+    '''
+    Get admin role.
+
+    Requires:
+        admin_id (int)
+
+    Returns:
+        200: Admin role
+        404: Admin or admin role not found
+        500: Internal server error
+    '''
     try:
         admin = Admin.query.filter_by(admin_id=admin_id).first()
         if not admin:
@@ -502,8 +615,18 @@ def get_admin_role(admin_id):
 
 @app.route('/get_logs', methods=['GET'])
 def get_logs():
-    logs = Log.query.all()
-    return jsonify(logs_schema.dump(logs))
+    '''
+    Get logs.
+
+    Returns:
+        200: Logs retrieved successfully
+        500: Server Error
+    '''
+    try:
+        logs = Log.query.all()
+        return jsonify(logs_schema.dump(logs)), 200
+    except:
+        return abort(500, "Internal server error")
 
 # Customer routes
 
@@ -575,22 +698,54 @@ def get_product(product_id):
     '''
     Get product.
 
+    Requires:
+        product_id (int)
+
     Returns:
         200: Product retrieved successfully
         404: Product not found
         500: Server Error
     '''
+    if type(product_id) != int:
+        return abort(400, "Invalid product id")
+    
     try:
         product = Product.query.filter_by(product_id=product_id).first()
         if not product:
             return abort(404, "Product not found")
-        return jsonify(product_schema.dump(product))
+        return jsonify(product_schema.dump(product)), 200
     except:
         return abort(500, "Something went wrong")
 
 @app.route('/product/<int:product_id>', methods=['POST'])
 def update_product(product_id):
-    data = request.get_json()
+    '''
+    Update product.
+
+    Requires:
+        token (jwt)
+        product_id (int)
+        name (str) - optional
+        quantity (int) - optional
+        price (float) - optional
+        description (str) - optional
+        category_id (int) - optional
+        promotion_id (int) - optional
+        image (str) - optional
+        subcategory (str) - optional
+
+    Returns:
+        200: Inventory updated successfully
+        400: Bad request
+        401: Unauthorized
+        403: Invalid or expired token
+        404: Product not found
+        500: Internal server error
+    '''
+
+    if type(product_id) != int:
+        return abort(400, "Invalid product id")
+    
     product = Product.query.filter_by(product_id=product_id).first()
     if not product:
         return abort(404, "Product not found")
@@ -614,14 +769,14 @@ def update_product(product_id):
         return abort(400, "Invalid data type")
     
     try:
-        product.name = data['name']
-        product.quantity += data['quantity']
-        product.price = data['price']
-        product.description = data['description']
-        product.category_id = data['category_id']
-        product.promotion_id = data['promotion_id']
-        product.image = data['image']
-        product.subcategory = data['subcategory']
+        product.name = name
+        product.quantity += quantity
+        product.price = price
+        product.description = description
+        product.category_id = category_id
+        product.promotion_id = promotion_id
+        product.image = image
+        product.subcategory = subcategory
 
         log_details = f'Updated product {product.name}'
         log = Log(user_id=product.admin_id, timestamp=datetime.now(), details=log_details, action='UPDATE PRODUCT')
@@ -631,15 +786,26 @@ def update_product(product_id):
     except:
         return abort(500, "Something went wrong")
 
-    return product_schema.dump(product)
+    return product_schema.dump(product), 200
 
 
 @app.route('/product/<int:product_id>', methods=['DELETE'])
 def delete_product(product_id):
-    if 'product_id' not in request.json:
-        return abort(400, "Bad request")
-    
-    product_id = request.json['product_id']
+    '''
+    Delete product.
+
+    Requires:
+        token (jwt)
+        product_id (int)
+
+    Returns:
+        200: Product deleted successfully
+        400: Bad request
+        401: Unauthorized
+        403: Invalid or expired token
+        404: Product not found
+        500: Internal server error
+    '''
 
     if type(product_id) != int:
         return abort(400, "Bad request")
@@ -655,12 +821,33 @@ def delete_product(product_id):
         db.session.add(log)
         db.session.delete(product)
         db.session.commit()
+        
+        return {"message": "Product deleted successfully"}, 200
     except:
         return abort(500, "Something went wrong")
     
-
 @app.route('/add-product', methods=['POST'])
 def add_product():
+    '''
+    Create Product.
+
+    Requires:
+        token (jwt)
+        name (str)
+        quantity (int)
+        price (float)
+        description (str)
+        category_id (int)
+        promotion_id (int)
+        image (str)
+        subcategory (str)
+
+    Returns:
+        201: Product created successfully
+        400: Bad request
+        403: Invalid or expired token
+        500: Internal server error
+    '''
     # Required fields
     required_fields = ['name', 'quantity', 'price', 'description', 'category_id', 'promotion_id', 'image', 'subcategory']
     for field in required_fields:
@@ -691,13 +878,27 @@ def add_product():
         db.session.add(product)
         db.session.commit()
 
-        return product_schema.dump(product), 200  
+        return product_schema.dump(product), 201
     except:
         return abort(500, "Something went wrong")
 
 
 @app.route('/add-category', methods=['POST'])
 def add_category():
+    '''
+    Create Category.
+
+    Requires:
+        token (jwt)
+        name (str)
+        description (str)
+
+    Returns:
+        201: Category created successfully
+        400: Bad request
+        403: Invalid or expired token
+        500: Internal server error
+    '''
     # Required fields
     required_fields = ['name', 'description']
     for field in required_fields:
@@ -724,12 +925,26 @@ def add_category():
         db.session.add(category)
         db.session.commit()
 
-        return product_category_schema.dump(category), 200
+        return product_category_schema.dump(category), 201
     except:
         return abort(500, "Something went wrong")
 
 @app.route('/delete-category', methods=['DELETE'])
 def delete_category():
+    '''
+    Delete Category.
+
+    Requires:
+        token (jwt)
+        category_id (int)
+
+    Returns:
+        200: Category deleted successfully
+        400: Bad request
+        403: Invalid or expired token
+        404: Category not found
+        500: Internal server error
+    '''
     # Required fields
     required_fields = ['category_id']
     for field in required_fields:
@@ -754,7 +969,7 @@ def delete_category():
         db.session.delete(category)
         db.session.commit()
 
-        return product_category_schema.dump(category), 200
+        return {"message": "Category deleted successfully"}, 200
     except:
         return abort(500, "Something went wrong")
 
@@ -811,6 +1026,21 @@ def get_orders():
 
 @app.route('/order/<int:order_id>', methods=['GET'])
 def get_order(order_id):
+    '''
+    Get order by order_id.
+
+    Requires:
+        order_id (int)
+
+    Returns:
+        200: Order retrieved successfully
+        400: Bad request
+        404: Order not found
+        500: Server Error
+    '''
+    if type(order_id) != int:
+        return abort(400, "Bad request")
+    
     try:
         order = Order.query.filter_by(order_id=order_id).first()
 
@@ -825,6 +1055,21 @@ def get_order(order_id):
 
 @app.route('/order-items/<int:order_id>', methods=['GET'])
 def get_order_items(order_id):
+    '''
+    Get order items by order_id.
+
+    Requires:
+        order_id (int)
+
+    Returns:
+        200: Order items retrieved successfully
+        400: Bad request
+        404: Order not found
+        500: Server Error
+    '''
+    if type(order_id) != int:
+        return abort(400, "Bad request")
+    
     try:
         order = Order.query.filter_by(order_id=order_id).first()
 
@@ -840,6 +1085,25 @@ def get_order_items(order_id):
 
 @app.route('/promote/<int:product_id>', methods=['POST'])
 def promote(product_id):
+    '''
+    Promote product by product_id.
+
+    Requires:
+        token (jwt)
+        product_id (int)
+        promotion_type (str)
+        promotion_value (float)
+        user_tier (str)
+        name (str)
+
+    Returns:
+        200: Product promoted successfully
+        400: Bad request
+        401: Unauthorized
+        403: Invalid or expired token
+        404: Product not found
+        500: Internal server error
+    '''
     # Required fields
     required_fields = ['product_id', 'promotion_type', 'promotion_value', 'user_tier', 'name']
     for field in required_fields:
@@ -888,12 +1152,24 @@ def get_promotions():
 
 @app.route('/promote/<int:product_id>', methods=['DELETE'])
 def delete_promotion(product_id):
+    '''
+    Delete promotion by promotion_id.
+
+    Requires:
+        promotion_id (int)
+
+    Returns:
+        200: Promotion deleted successfully
+        400: Bad request
+        404: Promotion not found
+        500: Internal server error
+    '''
     if 'promotion_id' not in request.json:
         return abort(400, "Missing promotion_id")
     
     promotion_id = request.json['promotion_id']
 
-    if type(promotion_id) != int:
+    if type(promotion_id) != int or type(product_id) != int:
         return abort(400, "Invalid promotion_id")
     
     try:
@@ -927,9 +1203,18 @@ def get_returns():
     
 @app.route('/refund/<int:order_id>', methods=['POST'])
 def refund(order_id):
-    if 'order_id' not in request.json:
-        return abort(400, "Missing order_id")
-    
+    '''
+    Refund order by order_id.
+
+    Requires:
+        order_id (int)
+
+    Returns:
+        200: Order refunded successfully
+        400: Bad request
+        404: Order not found
+        500: Internal server error
+    '''
     order_id = request.json['order_id']
 
     if type(order_id) != int:
@@ -954,8 +1239,18 @@ def refund(order_id):
 
 @app.route('/cancel-order/<int:order_id>', methods=['POST'])
 def cancel_order(order_id):
-    if 'order_id' not in request.json:
-        return abort(400, "Missing order_id")
+    '''
+    Cancel order by order_id.
+
+    Requires:
+        order_id (int)
+
+    Returns:
+        200: Order canceled successfully
+        400: Bad request
+        404: Order not found
+        500: Internal server error
+    '''
     
     order_id = request.json['order_id']
 
@@ -981,9 +1276,18 @@ def cancel_order(order_id):
     
 @app.route('/replace-order/<int:order_id>', methods=['POST'])
 def replace_order(order_id):
-    if 'order_id' not in request.json:
-        return abort(400, "Missing order_id")
-    
+    '''
+    Replace order by order_id.
+
+    Requires:
+        order_id (int)
+
+    Returns:
+        200: Order replaced successfully
+        400: Bad request
+        404: Order not found
+        500: Internal server error
+    '''
     order_id = request.json['order_id']
 
     if type(order_id) != int:
@@ -1010,6 +1314,13 @@ def replace_order(order_id):
     
 @app.route('/inventory-report', methods=['POST'])
 def generate_inventory_report():
+    '''
+    Generate inventory report.
+
+    Returns:
+        200: Inventory report generated successfully
+        400: Bad request
+    '''
     try:
         # Fetch products and order items
         products = Product.query.all()
