@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, abort, flash, redirect, url_for
+from flask import Flask, request, abort, flash, redirect, url_for
 import requests
 from werkzeug.utils import secure_filename
 import pandas as pd
@@ -7,7 +7,7 @@ import os
 import re
 
 from secret_key import SECRET_KEY
-from app import extract_auth_token, decode_token, jwt, datetime, DB_PATH
+from app import extract_auth_token, decode_token, jwt, DB_PATH
 
 app = Flask(__name__)
 
@@ -737,6 +737,7 @@ def generate_inventory_reports():
     Returns:
         200: Inventory report generated successfully.
         401: Unauthorized
+        403: Invalid Token
         500: Internal server error
     '''
     token = extract_auth_token(request)
@@ -756,59 +757,11 @@ def generate_inventory_reports():
     if not admin_role.get('reports', False):
         return abort(401, "Unauthorized")
     
-    try:
-        # Fetch products and order items
-        products = Product.query.all()
-        order_items = OrderItem.query.all()
-
-        if not products or not order_items:
-            return jsonify({"message": "No data available for generating reports"}), 400
-
-        # Calculate total sales for each product
-        sales_data = {}
-        for item in order_items:
-            if item.product_id not in sales_data:
-                sales_data[item.product_id] = 0
-            sales_data[item.product_id] += item.quantity
-        
-        # Find the most popular product
-        most_popular_product_id = max(sales_data, key=sales_data.get)
-        most_popular_name = next(
-            (product.name for product in products if product.product_id == most_popular_product_id),
-            "Unknown"
-        )
-
-        # Generate report data
-        report_data = []
-        for product in products:
-            turnover_rate = (
-                sales_data.get(product.product_id, 0) /
-                max(product.quantity_in_stock, 1)
-            )
-            demand_forecast = sales_data.get(product.product_id, 0) * 1.05  # Assume 5% growth
-
-            report_data.append({
-                "product_id": product.product_id,
-                "report_date": datetime.now(),
-                "turnover_rate": turnover_rate,
-                "demand_forecast": int(demand_forecast),
-                "most_popular": "Yes" if product.product_id == most_popular_product_id else "No"
-            })
-        
-        # Save reports
-        report_objects = [Report(**data) for data in report_data]
-        db.session.bulk_save_objects(report_objects)
-        db.session.commit()
-        
-        return jsonify({
-            "message": "Reports generated successfully",
-            "most_popular_product": most_popular_name,
-            "most_popular_sales": sales_data[most_popular_product_id]
-        }), 200
+    response = requests.post(f"{DB_PATH}/generate-inventory-reports")
+    if response.status_code != 200:
+        return abort(500, "Something went wrong")
     
-    except Exception as e:
-        print(f"Error: {str(e)}")
-        return abort(500, "Internal server error")
+    return response.json(), 200
 
 
 if __name__ == "__main__":

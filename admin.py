@@ -2,7 +2,7 @@ from flask import Flask, request, abort
 import requests
 
 from secret_key import SECRET_KEY
-from app import extract_auth_token, decode_token, jwt, DB_PATH 
+from app import create_token, extract_auth_token, decode_token, jwt, DB_PATH 
 
 app = Flask(__name__)
 
@@ -106,6 +106,7 @@ def create_admin():
     except Exception as e:
         return abort(500, "Something went wrong")
 
+
 @app.route('/logs', methods=['GET'])
 def get_logs():
     '''
@@ -148,5 +149,37 @@ def get_logs():
     
     return response.json(), 200
     
+
+@app.route('/login', methods=['POST'])
+def login():
+    '''
+    Login as Admin.
+
+    Requires:
+        email (str)
+        password (str)
+
+    Returns:
+        200: JWT Token
+        401: Unauthorized
+        500: Internal server error
+    '''
+
+    email = request.json['email']
+    password = request.json['password']
+
+    response = requests.get(f"{DB_PATH}/admin/email/{email}")
+    if response.status_code != 200:
+        return abort(401, "Unauthorized")
+
+    response = requests.post(f"{DB_PATH}/admin/authenticate", json={"email": email, "password": password})
+    if response.status_code != 200:
+        return abort(401, "Unauthorized")
+
+    admin = response.json()
+    token = create_token(admin['admin_id'])
+
+    return {'token': token}, 200
+
 if __name__ == "__main__":
     app.run(port=5000)

@@ -26,13 +26,13 @@ class AdminRole(db.Model):
     logs = db.Column(db.Boolean, nullable=False)
     reports = db.Column(db.Boolean, nullable=False)
 
-    def __init__(self, admin_id, customer_support, logs, product_management, order_management, customer_management, inventory_management, reports):
-        super(AdminRole, self).__init__(admin_id=admin_id, customer_support=customer_support, customer_management=customer_management, logs=logs, product_management=product_management, order_management=order_management, inventory_management=inventory_management, reports=reports)
+    def __init__(self, admin_id, admin_management, customer_support, logs, product_management, order_management, customer_management, inventory_management, reports):
+        super(AdminRole, self).__init__(admin_id=admin_id, admin_management=admin_management, customer_support=customer_support, customer_management=customer_management, logs=logs, product_management=product_management, order_management=order_management, inventory_management=inventory_management, reports=reports)
 
 class AdminRoleSchema(ma.Schema):
     class Meta:
         model = AdminRole
-        fields = ('admin_role_id', 'admin_id', 'customer_management', 'customer_support', 'logs', 'product_management', 'order_management', 'inventory_management', 'reports')
+        fields = ('admin_role_id', 'admin_id', 'admin_management', 'customer_management', 'customer_support', 'logs', 'product_management', 'order_management', 'inventory_management', 'reports')
 
 admin_role_schema = AdminRoleSchema()
 admin_roles_schema = AdminRoleSchema(many=True)
@@ -299,6 +299,16 @@ returns_schema = ReturnSchema(many=True)
 
 # Admin routes
 
+@app.route('/admin/authenticate', methods=['POST'])
+def authenticate_admin():
+    data = request.get_json()
+    email = data['email']
+    password = data['password']
+    admin = Admin.query.filter_by(email=email, password=password).first()
+    if not admin:
+        return abort(401, "Unauthorized")
+    return admin_schema.dump(admin)
+
 @app.route('/admin/<int:admin_id>', methods=['GET'])
 def get_admin(admin_id):
     a = Admin.query.filter_by(id=admin_id).first()
@@ -356,6 +366,101 @@ def add_admin_role():
     db.session.add(admin_role)
     db.session.commit()
     return admin_role_schema.dump(admin_role), 201
+
+
+
+def create_tables_and_populate():
+    """Create tables and populate with initial data."""
+    with app.app_context():
+        db.create_all()  # Create all tables
+
+        if Admin.query.first():
+            print("Database already populated.")
+            return
+
+        # Populate with example data
+        try:
+            # Admin
+            admin1 = Admin(name="John Doe", email="john@example.com", phone=1234567890, password="password123")
+            admin2 = Admin(name="Jane Smith", email="jane@example.com", phone=9876543210, password="securepassword")
+            db.session.add_all([admin1, admin2])
+
+            # AdminRole
+            role1 = AdminRole(admin_id=1, admin_management=True, customer_support=True, logs=True, product_management=True,
+                            order_management=True, customer_management=True, inventory_management=True, reports=True)
+            role2 = AdminRole(admin_id=2, admin_management=True, customer_support=False, logs=False, product_management=True,
+                            order_management=True, customer_management=True, inventory_management=False, reports=False)
+            db.session.add_all([role1, role2])
+
+            # Log
+            log1 = Log(user_id=1, timestamp=datetime.datetime.now(), details="Logged in", action="Login")
+            log2 = Log(user_id=1, timestamp=datetime.datetime.now(), details="Added a product", action="Add Product")
+            log3 = Log(user_id=2, timestamp=datetime.datetime.now(), details="Viewed a report", action="View Report")
+            db.session.add_all([log1, log2, log3])
+
+            # Customer
+            customer1 = Customer(name="Alice Johnson", email="alice@example.com", phone_number=1111111111,
+                                address="123 Main St, Cityville", tier=CustomerTier.NORMAL)
+            customer2 = Customer(name="Bob Brown", email="bob@example.com", phone_number=2222222222,
+                                address="456 Elm St, Townsville", tier=CustomerTier.PREMIUM)
+            db.session.add_all([customer1, customer2])
+
+            # Support
+            support1 = Support(customer_id=1, issue_description="Order not received", status="open",
+                            created_at=datetime.datetime.now(), resolved_at=None)
+            support2 = Support(customer_id=2, issue_description="Defective product", status="closed",
+                            created_at=datetime.datetime.now(), resolved_at=datetime.datetime.now())
+            db.session.add_all([support1, support2])
+
+            # Wishlist
+            wishlist1 = Wishlist(customer_id=1, product_id=1, quantity=2)
+            wishlist2 = Wishlist(customer_id=2, product_id=2, quantity=1)
+            db.session.add_all([wishlist1, wishlist2])
+
+            # ProductCategory
+            category1 = ProductCategory(name="Electronics", description="Gadgets and devices")
+            category2 = ProductCategory(name="Books", description="Fiction and non-fiction books")
+            db.session.add_all([category1, category2])
+
+            # Product
+            product1 = Product(category_id=1, name="Smartphone", image="smartphone.jpg", description="Latest model smartphone",
+                            subcategory="Mobile", price=699.99, quantity_in_stock=50,
+                            created_at=datetime.datetime.now(), updated_at=datetime.datetime.now())
+            product2 = Product(category_id=2, name="Mystery Novel", image="book.jpg", description="A thrilling mystery novel",
+                            subcategory="Mystery", price=15.99, quantity_in_stock=200,
+                            created_at=datetime.datetime.now(), updated_at=datetime.datetime.now())
+            db.session.add_all([product1, product2])
+
+            # Report
+            report1 = Report(product_id=1, report_date=datetime.datetime.now(), turnover_rate=0.5,
+                            demand_forecast=100, most_popular="Smartphone")
+            report2 = Report(product_id=2, report_date=datetime.datetime.now(), turnover_rate=0.8,
+                            demand_forecast=50, most_popular="Mystery Novel")
+            db.session.add_all([report1, report2])
+
+            # Order
+            order1 = Order(customer_id=1, status=OrderStatus.PENDING, total_amount=1399.98,
+                        created_at=datetime.datetime.now(), updated_at=datetime.datetime.now())
+            order2 = Order(customer_id=2, status=OrderStatus.DELIVERED, total_amount=15.99,
+                        created_at=datetime.datetime.now(), updated_at=datetime.datetime.now())
+            db.session.add_all([order1, order2])
+
+            # OrderItem
+            order_item1 = OrderItem(order_id=1, product_id=1, quantity=2, price_at_purchase=699.99)
+            order_item2 = OrderItem(order_id=2, product_id=2, quantity=1, price_at_purchase=15.99)
+            db.session.add_all([order_item1, order_item2])
+
+            # Return
+            return1 = Return(order_id=2, return_reason="Defective item", status=ReturnStatus.COMPLETE,
+                            created_at=datetime.datetime.now())
+            db.session.add(return1)
+
+            # Commit all changes
+            db.session.commit()
+
+        except Exception as e:
+            db.session.rollback()
+            print(f"Error populating the database: {e}")
 
 
 @app.route('/admin/<int:admin_id>/role', methods=['GET'])
@@ -438,8 +543,9 @@ def get_products():
     
     try:
         products = Product.query.all()
-        return jsonify({products_schema.dump(products)}), 200
-    except:
+        return jsonify(products_schema.dump(products)), 200
+    except Exception as e:
+        print(e)
         return abort(500, "Something went wrong")
 
 
@@ -593,7 +699,7 @@ def get_categories():
     
     try:
         categories = ProductCategory.query.all()
-        return jsonify({product_categories_schema.dump(categories)}), 200
+        return jsonify(product_categories_schema.dump(categories)), 200
     except:
         return abort(500, "Something went wrong")
     
@@ -610,7 +716,7 @@ def get_reports():
     
     try:
         reports = Report.query.all()
-        return jsonify({reports_schema.dump(reports)}), 200
+        return jsonify(reports_schema.dump(reports)), 200
     except:
         return abort(500, "Something went wrong")
     
@@ -694,7 +800,7 @@ def refund(order_id):
         db.session.add(log)
         db.session.commit()
         
-        return jsonify({order_schema.dump(order)}), 200
+        return jsonify(order_schema.dump(order)), 200
     except:
         return abort(500, "Internal server error")
 
@@ -714,7 +820,7 @@ def cancel_order(order_id):
         db.session.add(log)
         db.session.commit()
         
-        return jsonify({order_schema.dump(order)}), 200
+        return jsonify(order_schema.dump(order)), 200
     except:
         return abort(500, "Internal server error")
     
@@ -736,12 +842,67 @@ def replace_order(order_id):
         db.session.add(log)
         db.session.commit()
         
-        return jsonify({order_schema.dump(order)}), 200
+        return jsonify(order_schema.dump(order)), 200
     except:
+        return abort(500, "Internal server error")
+    
+@app.route('/inventory-report', methods=['POST'])
+def generate_inventory_report():
+    try:
+        # Fetch products and order items
+        products = Product.query.all()
+        order_items = OrderItem.query.all()
+
+        if not products or not order_items:
+            return jsonify({"message": "No data available for generating reports"}), 400
+
+        # Calculate total sales for each product
+        sales_data = {}
+        for item in order_items:
+            if item.product_id not in sales_data:
+                sales_data[item.product_id] = 0
+            sales_data[item.product_id] += item.quantity
+        
+        # Find the most popular product
+        most_popular_product_id = max(sales_data, key=sales_data.get)
+        most_popular_name = next(
+            (product.name for product in products if product.product_id == most_popular_product_id),
+            "Unknown"
+        )
+
+        # Generate report data
+        report_data = []
+        for product in products:
+            turnover_rate = (
+                sales_data.get(product.product_id, 0) /
+                max(product.quantity_in_stock, 1)
+            )
+            demand_forecast = sales_data.get(product.product_id, 0) * 1.05  # Assume 5% growth
+
+            report_data.append({
+                "product_id": product.product_id,
+                "report_date": datetime.now(),
+                "turnover_rate": turnover_rate,
+                "demand_forecast": int(demand_forecast),
+                "most_popular": "Yes" if product.product_id == most_popular_product_id else "No"
+            })
+        
+        # Save reports
+        report_objects = [Report(**data) for data in report_data]
+        db.session.bulk_save_objects(report_objects)
+        db.session.commit()
+        
+        return jsonify({
+            "message": "Reports generated successfully",
+            "most_popular_product": most_popular_name,
+            "most_popular_sales": sales_data[most_popular_product_id]
+        }), 200
+    
+    except Exception as e:
+        print(f"Error: {str(e)}")
         return abort(500, "Internal server error")
 
 # Run Flask App
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
+    create_tables_and_populate()
     app.run(debug=True, port=3000)

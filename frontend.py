@@ -4,12 +4,12 @@ from app import extract_auth_token, decode_token, jwt, DB_PATH
 
 app = Flask(__name__)
 
-# @app.route('/')
-# def home():
-#     '''
-#     Render the homepage or redirect to the logs page.
-#     '''
-#     return render_template('logs.html')
+@app.route('/')
+def home():
+    '''
+    Render the homepage or redirect to the logs page.
+    '''
+    return render_template('login.html')
 
 @app.route('/logs', methods=['GET'])
 def logs_page():
