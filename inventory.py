@@ -241,72 +241,68 @@ def delete_product():
     return response.json(), 200
     
 
-# @app.route('/promote', methods=['POST'])
-# def promote_product():
-#     '''
-#     Promote product.
+@app.route('/promote', methods=['POST'])
+def promote_product():
+    '''
+    Promote product.
+    Must be an admin with product_management role
 
-#     Requires:
-#         token (jwt)
-#         product_id (int)
-#         promotion_type (str)
-#         promotion_value (float)
-#         user_tier (str)
-#         name (str)
+    Requires:
+        token (jwt)
+        product_id (int)
+        promotion_type (str)
+        promotion_value (float)
+        user_tier (str)
+        name (str)
 
-#     Returns:
-#         200: Product promoted successfully
-#         400: Bad request
-#         401: Unauthorized
-#         403: Invalid or expired token
-#         404: Product not found
-#         500: Internal server error
-#     '''
+    Returns:
+        200: Product promoted successfully
+        400: Bad request
+        401: Unauthorized
+        403: Invalid or expired token
+        404: Product not found
+        500: Internal server error
+    '''
 
-#     token = extract_auth_token(request)
-#     if not token:
-#         abort(403, "Something went wrong")
-#     try:
-#         admin_id = decode_token(token)
-#     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
-#         abort(403, "Something went wrong")
+    token = extract_auth_token(request)
+    if not token:
+        abort(403, "Something went wrong")
+    try:
+        admin_id = decode_token(token)
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        abort(403, "Something went wrong")
 
-#     # Check if admin exists
-#     admin = Admin.query.filter_by(admin_id=admin_id).first()
-#     if admin is None:
-#         return abort(401, "Unauthorized")
+    # Check admin role
+    response = requests.get(f"{DB_PATH}/admin/{admin_id}/role")
+    if response.code == 404:
+        return abort(404, "Admin not found")
     
-#     # Check admin role
-#     admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
-#     if admin_role.product_management == False:
-#         return abort(401, "Unauthorized")
+    admin_role = response.json()
+    if admin_role['product_management'] == False:
+        return abort(401, "Unauthorized")
     
-#     # Required fields
-#     required_fields = ['product_id', 'promotion_type', 'promotion_value', 'user_tier', 'name']
-#     for field in required_fields:
-#         if field not in request.json:
-#             return abort(400, "Missing required field")
+    # Required fields
+    required_fields = ['product_id', 'promotion_type', 'promotion_value', 'user_tier', 'name']
+    for field in required_fields:
+        if field not in request.json:
+            return abort(400, "Missing required field")
         
-#     product_id = request.json['product_id']
-#     promotion_type = request.json['promotion_type']
-#     promotion_value = request.json['promotion_value']
-#     user_tier = request.json['user_tier']
-#     name = request.json['name']
+    product_id = request.json['product_id']
+    promotion_type = request.json['promotion_type']
+    promotion_value = request.json['promotion_value']
+    user_tier = request.json['user_tier']
+    name = request.json['name']
 
-#     try:
-#         product = Product.query.filter_by(product_id=product_id).first()
+    if type(product_id) != int or type(promotion_type) != str or type(promotion_value) != float or type(user_tier) != str or type(name) != str:
+        return abort(400, "Invalid data type")
     
-#         if product is None:
-#             return abort(400, "Product not found")
-        
-#         promotion = Promotion(name=name, product_id=product_id, promotion_type=promotion_type, promotion_value=promotion_value, user_tier=user_tier)
-
-#         db.session.add(promotion)
-#         db.session.commit()
-
-#         return product_schema.dump(product), 200
-#     except:
-#         return abort(500, "Something went wrong")
+    response = requests.post(f"{DB_PATH}/promote/{product_id}", json=request.json)
+    if response.code == 500:
+        return abort(500, "Something went wrong")
+    elif response.code == 404:
+        return abort(404, "Product not found")
+    
+    return response.json(), 200
 
 
 @app.route('/add-product', methods=['POST'])
@@ -481,57 +477,53 @@ def delete_category():
     return response.json(), 200
 
 
-# @app.route('/delete-promotion', methods=['POST'])
-# def delete_promotion():
-#     '''
-#     Delete promotion.
+@app.route('/delete-promotion', methods=['POST'])
+def delete_promotion():
+    '''
+    Delete promotion.
 
-#     Requires:
-#         token (jwt)
-#         promotion_id (int)
+    Requires:
+        token (jwt)
+        promotion_id (int)
 
-#     Returns:
-#         200: Promotion deleted successfully
-#         400: Bad request
-#         401: Unauthorized
-#         403: Invalid or expired token
-#         500: Internal server error
-#     '''
+    Returns:
+        200: Promotion deleted successfully
+        400: Bad request
+        401: Unauthorized
+        403: Invalid or expired token
+        500: Internal server error
+    '''
 
-#     token = extract_auth_token(request)
-#     if not token:
-#         abort(403, "Something went wrong")
-#     try:
-#         admin_id = decode_token(token)
-#     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
-#         abort(403, "Something went wrong")
+    token = extract_auth_token(request)
+    if not token:
+        abort(403, "Something went wrong")
+    try:
+        admin_id = decode_token(token)
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        abort(403, "Something went wrong")
 
-#     # Check if admin exists
-#     admin = Admin.query.filter_by(admin_id=admin_id).first()
-#     if admin is None:
-#         return abort(401, "Unauthorized")
+    # Check admin role
+    response = requests.get(f"{DB_PATH}/admin/{admin_id}/role")
+    if response.code == 404:
+        return abort(404, "Admin not found")
     
-#     # Check admin role
-#     admin_role = AdminRole.query.filter_by(admin_id=admin_id).first()
-#     if admin_role.product_management == False:
-#         return abort(401, "Unauthorized")
+    admin_role = response.json()
+    if admin_role['product_management'] == False:
+        return abort(401, "Unauthorized")
     
-#     # Required fields
-#     promotion_id = request.json['promotion_id']
+    # Required fields
+    promotion_id = request.json['promotion_id']
 
-#     try:
-#         promotion = Promotion.query.filter_by(promotion_id=promotion_id).first()
-
-#         if promotion is None:
-#             return abort(400, "Promotion not found")
-        
-#         db.session.delete(promotion)
-#         db.session.commit()
-
-#         return promotion_schema.dump(promotion), 200
-#     except:
-#         return abort(500, "Something went wrong")
-
+    if type(promotion_id) != int:
+        return abort(400, "Invalid promotion_id")
+    
+    response = requests.delete(f"{DB_PATH}/promote/{promotion_id}", json=request.json)
+    if response.code == 500:
+        return abort(500, "Something went wrong")
+    elif response.code == 404:
+        return abort(404, "Promotion not found")
+    
+    return response.json(), 200
 
 
 def allowed_file_type(file_path):

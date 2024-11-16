@@ -198,6 +198,28 @@ class ProductSchema(ma.Schema):
 product_schema = ProductSchema()
 products_schema = ProductSchema(many=True)
 
+# Promotion
+class PromotionType(Enum):
+    percentage = 'percentage'
+    fixed = 'fixed'
+
+class Promotion(db.Model):
+    promotion_id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), nullable=False)
+    discount_type = db.Column(db.String(80), nullable=False)
+    discount_value = db.Column(db.Float, nullable=False)
+    start_date = db.Column(db.DateTime, nullable=False)
+    end_date = db.Column(db.DateTime, nullable=False)
+    user_tier = db.Column(db.String(80), nullable=False)
+    def __init__(self, name, discount_type, discount_value, start_date, end_date, user_tier):
+        super(Promotion, self).__init__(name=name, discount_type=discount_type, discount_value=discount_value, start_date=start_date, end_date=end_date, user_tier=user_tier)
+
+class PromotionSchema(ma.Schema):
+    class Meta:
+        fields = ('promotion_id', 'name', 'discount_type', 'discount_value', 'start_date', 'end_date', 'user_tier')
+
+promotion_schema = PromotionSchema()
+promotions_schema = PromotionSchema(many=True)
 
 
 # Report
@@ -816,6 +838,76 @@ def get_order_items(order_id):
     except:
         return abort(500, "Internal server error")
 
+@app.route('/promote/<int:product_id>', methods=['POST'])
+def promote(product_id):
+    # Required fields
+    required_fields = ['product_id', 'promotion_type', 'promotion_value', 'user_tier', 'name']
+    for field in required_fields:
+        if field not in request.json:
+            return abort(400, "Missing required field")
+
+    product_id = request.json['product_id']
+    promotion_type = request.json['promotion_type']
+    promotion_value = request.json['promotion_value']
+    user_tier = request.json['user_tier']
+    name = request.json['name']
+
+    if type(product_id) != int or type(promotion_type) != str or type(promotion_value) != float or type(user_tier) != str or type(name) != str:
+        return abort(400, "Invalid data type")
+
+    try:
+        product = Product.query.filter_by(product_id=product_id).first()
+    
+        if product is None:
+            return abort(404, "Product not found")
+        
+        promotion = Promotion(name=name, product_id=product_id, promotion_type=promotion_type, promotion_value=promotion_value, user_tier=user_tier)
+
+        db.session.add(promotion)
+        db.session.commit()
+
+        return product_schema.dump(product), 200
+    except:
+        return abort(500, "Something went wrong")
+
+@app.route('/promotions', methods=['GET'])
+def get_promotions():
+    '''
+    Get promotions.
+
+    Returns:
+        200: Promotions retrieved successfully
+        500: Server Error
+    '''
+    
+    try:
+        promotions = Promotion.query.all()
+        return jsonify(promotions_schema.dump(promotions)), 200
+    except:
+        return abort(500, "Something went wrong")
+
+@app.route('/promote/<int:product_id>', methods=['DELETE'])
+def delete_promotion(product_id):
+    if 'promotion_id' not in request.json:
+        return abort(400, "Missing promotion_id")
+    
+    promotion_id = request.json['promotion_id']
+
+    if type(promotion_id) != int:
+        return abort(400, "Invalid promotion_id")
+    
+    try:
+        promotion = Promotion.query.filter_by(promotion_id=promotion_id).first()
+        
+        if promotion is None:
+            return abort(404, "Promotion not found")
+        
+        db.session.delete(promotion)
+        db.session.commit()
+
+        return promotion_schema.dump(promotion), 200
+    except:
+        return abort(500, "Something went wrong")
 
 @app.route('/returns', methods=['GET'])
 def get_returns():
