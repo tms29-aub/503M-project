@@ -1,10 +1,12 @@
 from flask import Flask, request, abort
+from flask_cors import CORS
 import requests
 
 from secret_key import SECRET_KEY
 from app import create_token, extract_auth_token, decode_token, jwt, DB_PATH 
 
 app = Flask(__name__)
+CORS(app, supports_credentials=True)
 
 
 @app.route('/admin-login', methods=['POST'])
@@ -181,7 +183,6 @@ def login():
         401: Unauthorized
         500: Internal server error
     '''
-
     required_fields = ['email', 'password']
     # Check if all required fields are present
     if not all(field in request.json for field in required_fields):

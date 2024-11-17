@@ -1,4 +1,5 @@
 from flask import Flask, request, jsonify, abort
+from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
 from flask_bcrypt import Bcrypt
@@ -12,6 +13,7 @@ app.config['UPLOAD_FOLDER'] = 'uploads'
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 ma = Marshmallow(app)
+CORS(app, supports_credentials=True, origins=["http://localhost:5004"])
 
 # AdminRole
 class AdminRole(db.Model):
@@ -319,6 +321,7 @@ return_schema = ReturnSchema()
 returns_schema = ReturnSchema(many=True)
 
 
+
 # Admin routes
 
 @app.route('/admin/authenticate', methods=['POST'])
@@ -346,10 +349,14 @@ def authenticate_admin():
     if type(email) != str or type(password) != str:
         return abort(400, "Bad request")
     
-    admin = Admin.query.filter_by(email=email, password=password).first()
+    admin = Admin.query.filter_by(email=email).first()
     if not admin:
         return abort(401, "Unauthorized")
-    return admin_schema.dump(admin)
+    
+    if not bcrypt.check_password_hash(admin.hashed_password, password):
+        return abort(401, "Unauthorized")
+    
+    return admin_schema.dump(admin), 200
 
 @app.route('/admin/<int:admin_id>', methods=['GET'])
 def get_admin(admin_id):
@@ -684,12 +691,20 @@ def get_products():
         200: Products retrieved successfully
         500: Server Error
     '''
-    
+    if request.method == 'OPTIONS':
+        response = Flask.make_response('', 200)
+        response.headers['Access-Control-Allow-Origin'] = 'http://localhost:5004'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+        return response
+    print(request.cookies)
+    print(request.headers)
+    print("here")
     try:
         products = Product.query.all()
         return jsonify(products_schema.dump(products)), 200
     except Exception as e:
-        print(e)
         return abort(500, "Something went wrong")
 
 

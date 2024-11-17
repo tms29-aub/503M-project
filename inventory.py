@@ -1,4 +1,5 @@
 from flask import Flask, request, abort, flash, redirect, url_for
+from flask_cors import CORS
 import requests
 from werkzeug.utils import secure_filename
 import pandas as pd
@@ -10,7 +11,7 @@ from secret_key import SECRET_KEY
 from app import extract_auth_token, decode_token, jwt, DB_PATH
 
 app = Flask(__name__)
-
+CORS(app, supports_credentials=True)
 ALLOWED_EXTENSIONS = {'csv'}
 
 
@@ -183,10 +184,10 @@ def update_product():
     
     return response.json(), 200
 
-@app.route('/product', methods=['DELETE'])
-def delete_product():
+@app.route('/delete-product/<int:product_id>', methods=['DELETE'])
+def delete_product(product_id):
     '''
-    Delete product.
+    Delete product by product_id.
     Must be an admin with product_management role
 
     Requires:
@@ -201,7 +202,7 @@ def delete_product():
         404: Product not found
         500: Internal server error
     '''
-
+    print(request.cookies)
     token = extract_auth_token(request)
     if not token:
         abort(403, "Something went wrong")
@@ -209,7 +210,7 @@ def delete_product():
         admin_id = decode_token(token)
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
         abort(403, "Something went wrong")
-    
+
     # Check admin role
     response = requests.get(f"{DB_PATH}/admin/{admin_id}/role")
     if response.code == 404:
@@ -218,12 +219,6 @@ def delete_product():
     admin_role = response.json()
     if admin_role['product_management'] == False:
         return abort(401, "Unauthorized")
-    
-    # Required fields
-    if 'product_id' not in request.json:
-        return abort(400, "Bad request")
-    
-    product_id = request.json['product_id']
 
     if type(product_id) != int:
         return abort(400, "Bad request")
@@ -780,4 +775,4 @@ def generate_inventory_reports():
 
 
 if __name__ == "__main__":
-    app.run(port=5001)
+    app.run(port=5001, debug=True)
