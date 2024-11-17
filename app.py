@@ -14,7 +14,11 @@ def extract_auth_token(authenticated_request):
     '''
     Extract Authentication Token.
     '''
-    return authenticated_request.cookies.get('jwt')
+    auth_header = authenticated_request.headers.get('Authorization')
+    if auth_header:
+        return auth_header.split(" ")[1]
+    else:
+        return None
 
 
 def decode_token(token):

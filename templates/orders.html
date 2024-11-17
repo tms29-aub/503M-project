@@ -59,12 +59,15 @@
 
     <script>
         async function fetchOrders() {
-            const token = prompt("Enter your JWT token:");
-            const response = await fetch('/orders', {
+            const token = document.cookie.split('; ').find(row => row.startsWith('token=')).split('=')[1];
+
+            const response = await fetch('http://127.0.0.1:5002/orders', {
                 method: 'GET',
                 headers: {
+                    'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
-                }
+                },
+                credentials: "include"
             });
 
             const tableBody = document.querySelector("#ordersTable tbody");
@@ -95,14 +98,13 @@
         }
 
         async function cancelOrder(orderId) {
-            const token = prompt("Enter your JWT token:");
-            const response = await fetch('/cancel', {
+            const token = document.cookie.split('; ').find(row => row.startsWith('token=')).split('=')[1];
+            const response = await fetch("http://127.0.0.1:5002/cancel/"+orderId, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ order_id: orderId })
+                }
             });
 
             if (response.ok) {
@@ -115,14 +117,13 @@
         }
 
         async function refundOrder(orderId) {
-            const token = prompt("Enter your JWT token:");
-            const response = await fetch('/refund', {
+            const token = document.cookie.split('; ').find(row => row.startsWith('token=')).split('=')[1];
+            const response = await fetch("http://127.0.0.1:5002/refund/"+orderId, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ order_id: orderId })
+                }
             });
 
             if (response.ok) {
@@ -135,14 +136,13 @@
         }
 
         async function replaceOrder(orderId) {
-            const token = prompt("Enter your JWT token:");
-            const response = await fetch('/replace', {
+            const token = document.cookie.split('; ').find(row => row.startsWith('token=')).split('=')[1];
+            const response = await fetch("http://127.0.0.1:5002/replace/"+orderId, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ order_id: orderId })
+                }
             });
 
             if (response.ok) {

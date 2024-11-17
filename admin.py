@@ -126,7 +126,7 @@ def create_admin():
         return abort(500, "Something went wrong")
 
 
-@app.route('/logs', methods=['GET'])
+@app.route('/logs', methods=['POST'])
 def get_logs():
     '''
     Get logs.
@@ -148,11 +148,6 @@ def get_logs():
         admin_id = decode_token(token)
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
         abort(403, "Something went wrong")
-
-    # Check if admin exists
-    response = requests.get(f"{DB_PATH}/admin/{admin_id}")
-    if response.status_code != 200:
-        return abort(401, "Unauthorized")
     
     # Check admin role
     response = requests.get(f"{DB_PATH}/admin/{admin_id}/role")
@@ -162,7 +157,7 @@ def get_logs():
     if response.json()['logs'] == False:
         return abort(401, "Unauthorized")
     
-    response = request.get(f'{DB_PATH}/get_logs')
+    response = requests.get(f'{DB_PATH}/get_logs')
     if response.status_code != 200:
         return abort(500, "Something went wrong")
     

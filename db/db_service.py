@@ -4,6 +4,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_marshmallow import Marshmallow
 from flask_bcrypt import Bcrypt
 from enum import Enum
+from marshmallow_enum import EnumField
 import datetime
 
 app = Flask(__name__)
@@ -288,6 +289,7 @@ class Order(db.Model):
         super(Order, self).__init__(customer_id=customer_id, status=status, total_amount=total_amount, created_at=created_at, updated_at=updated_at)
 
 class OrderSchema(ma.Schema):
+    status = EnumField(OrderStatus, by_value=True)
     class Meta:
         model = Order
         fields = ('order_id', 'customer_id', 'status', 'total_amount', 'created_at', 'updated_at')
@@ -370,7 +372,7 @@ def get_admin(admin_id):
         200: Admin
         404: Admin not found
     '''
-    a = Admin.query.filter_by(id=admin_id).first()
+    a = Admin.query.filter_by(admin_id=admin_id).first()
     if not a:
         return abort(404, "Admin not found")
     return jsonify(admin_schema.dump(a))
@@ -635,31 +637,6 @@ def get_logs():
     except:
         return abort(500, "Internal server error")
 
-# Customer routes
-
-@app.route('/get_customers', methods=['GET'])
-def get_customers():
-    customers = Customer.query.all()
-    return jsonify(customers_schema.dump(customers))
-
-
-# Support routes
-
-@app.route('/get_supports', methods=['GET'])
-def get_supports():
-    # Query all Support entries
-    supports = Support.query.all()
-    return jsonify(supports_schema.dump(supports))
-
-
-# Wishlist routes
-
-@app.route('/get_wishlists', methods=['GET'])
-def get_wishlists():
-    # Query all Wishlist entries
-    wishlists = Wishlist.query.all()
-    return jsonify(wishlists_schema.dump(wishlists))
-
 
 # Inventory routes
 
@@ -691,16 +668,6 @@ def get_products():
         200: Products retrieved successfully
         500: Server Error
     '''
-    if request.method == 'OPTIONS':
-        response = Flask.make_response('', 200)
-        response.headers['Access-Control-Allow-Origin'] = 'http://localhost:5004'
-        response.headers['Access-Control-Allow-Credentials'] = 'true'
-        response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-        return response
-    print(request.cookies)
-    print(request.headers)
-    print("here")
     try:
         products = Product.query.all()
         return jsonify(products_schema.dump(products)), 200
@@ -765,41 +732,42 @@ def update_product(product_id):
     if not product:
         return abort(404, "Product not found")
     
-    # Required fields
-    required_fields = ['name', 'quantity', 'price', 'description', 'category_id', 'promotion_id', 'image', 'subcategory']
-    for field in required_fields:
-        if field not in request.json:
-            return abort(400, "Missing required field")
-    
-    name = request.json['name']
-    quantity = request.json['quantity']
-    price = request.json['price']
-    description = request.json['description']
-    category_id = request.json['category_id']
-    promotion_id = request.json['promotion_id']
-    image = request.json['image']
-    subcategory = request.json['subcategory']
-
-    if type(name) != str or type(quantity) != int or type(price) != float or type(description) != str or type(category_id) != int or type(promotion_id) != int or type(image) != str or type(subcategory) != str:
-        return abort(400, "Invalid data type")
-    
+    # Validate and update only non-null fields
     try:
-        product.name = name
-        product.quantity += quantity
-        product.price = price
-        product.description = description
-        product.category_id = category_id
-        product.promotion_id = promotion_id
-        product.image = image
-        product.subcategory = subcategory
+        if 'name' in request.json["request"] and request.json["request"]['name'] is not None:
+            product.name = request.json["request"]['name']
+        
+        if 'quantity' in request.json["request"] and request.json["request"]['quantity'] is not None:
+            product.quantity += int(request.json["request"]['quantity'])
+        
+        if 'price' in request.json["request"] and request.json["request"]['price'] is not None:
+            product.price = float(request.json["request"]['price'])
+        
+        if 'description' in request.json["request"] and request.json["request"]['description']:
+            product.description = request.json["request"]['description']
+        
+        if 'category_id' in request.json["request"] and request.json["request"]['category_id'] is not None:
+            product.category_id = int(request.json["request"]['category_id'])
+        
+        if 'promotion_id' in request.json["request"] and request.json["request"]['promotion_id'] is not None:
+            product.promotion_id = int(request.json["request"]['promotion_id'])
+        
+        if 'image' in request.json["request"] and request.json["request"]['image']:
+            product.image = request.json["request"]['image']
+        
+        if 'subcategory' in request.json["request"] and request.json["request"]['subcategory']:
+            product.subcategory = request.json["request"]['subcategory']
 
+        # Log the update
         log_details = f'Updated product {product.name}'
-        log = Log(user_id=product.admin_id, timestamp=datetime.now(), details=log_details, action='UPDATE PRODUCT')
+        log = Log(user_id=request.json['admin_id'], timestamp=datetime.datetime.now(), details=log_details, action='UPDATE PRODUCT')
         
         db.session.add(log)
         db.session.commit()
-    except:
-        return abort(500, "Something went wrong")
+    except Exception as e:
+        print(e)
+        db.session.rollback()
+        return abort(500, f"Something went wrong: {str(e)}")
 
     return product_schema.dump(product), 200
 
@@ -822,7 +790,12 @@ def delete_product(product_id):
         500: Internal server error
     '''
 
-    if type(product_id) != int:
+    if 'admin_id' not in request.json:
+        return abort(400, "Missing required field")
+    
+    admin_id = request.json['admin_id']
+
+    if type(product_id) != int or type(admin_id) != int:
         return abort(400, "Bad request")
     
     try:
@@ -831,14 +804,15 @@ def delete_product(product_id):
             return abort(404, "Product not found")
         
         log_details = f'Deleted product {product.name}'
-        log = Log(user_id=product.admin_id, timestamp=datetime.now(), details=log_details, action='DELETE PRODUCT')
+        log = Log(user_id=admin_id, timestamp=datetime.datetime.now(), details=log_details, action='DELETE PRODUCT')
         
         db.session.add(log)
         db.session.delete(product)
         db.session.commit()
         
         return {"message": "Product deleted successfully"}, 200
-    except:
+    except Exception as e:
+        print(e)
         return abort(500, "Something went wrong")
     
 @app.route('/add-product', methods=['POST'])
@@ -853,7 +827,6 @@ def add_product():
         price (float)
         description (str)
         category_id (int)
-        promotion_id (int)
         image (str)
         subcategory (str)
 
@@ -864,37 +837,43 @@ def add_product():
         500: Internal server error
     '''
     # Required fields
-    required_fields = ['name', 'quantity', 'price', 'description', 'category_id', 'promotion_id', 'image', 'subcategory']
+    required_fields = ['name', 'quantity', 'price', 'description', 'category_id']
     for field in required_fields:
-        if field not in request.json:
+        if field not in request.json['request']:
             return abort(400, "Missing required field")
         
-    name = request.json['name']
-    quantity = request.json['quantity']
-    price = request.json['price']
-    description = request.json['description']
-    category_id = request.json['category_id']
-    promotion_id = request.json['promotion_id']
-    image = request.json['image']
-    subcategory = request.json['subcategory']
+    if 'admin_id' not in request.json:
+        return abort(400, "Missing required field")
+    
+    admin_id = request.json['admin_id']
+
+    if type(admin_id) != int:
+        return abort(400, "Bad request")
+        
+    name = request.json['request']['name']
+    quantity = request.json['request']['quantity']
+    price = request.json['request']['price']
+    description = request.json['request']['description']
+    category_id = request.json['request']['category_id']
 
     try:
         category = ProductCategory.query.filter_by(category_id=category_id).first()
-
+ 
         if category is None:
             return abort(400, "Category not found")
         
-        product = Product(category_id=category_id, name=name, quantity_in_stock=quantity, price=price, description=description, promotion_id=promotion_id, image=image, subcategory=subcategory, created_at=datetime.now(), updated_at=datetime.now())
+        product = Product(category_id=category_id, name=name, quantity_in_stock=quantity, price=price, description=description, image='', subcategory='new', created_at=datetime.datetime.now(), updated_at=datetime.datetime.now())
 
         log_details = f'Added product {name}'
-        log = Log(user_id=category.admin_id, timestamp=datetime.now(), details=log_details, action='ADD PRODUCT')
+        log = Log(user_id=admin_id, timestamp=datetime.datetime.now(), details=log_details, action='ADD PRODUCT')
         
         db.session.add(log)
         db.session.add(product)
         db.session.commit()
 
         return product_schema.dump(product), 201
-    except:
+    except Exception as e:
+        print(e)
         return abort(500, "Something went wrong")
 
 
@@ -1025,7 +1004,7 @@ def get_reports():
 @app.route('/orders', methods=['GET'])
 def get_orders():
     '''
-    Get orders.
+    Get all orders.
 
     Returns:
         200: Orders retrieved successfully
@@ -1035,7 +1014,9 @@ def get_orders():
     try:
         orders = Order.query.all()
         return jsonify(orders_schema.dump(orders)), 200
-    except:
+    except Exception as e:
+        print(e)
+        print("here")
         return abort(500, "Something went wrong")
     
 
@@ -1230,7 +1211,6 @@ def refund(order_id):
         404: Order not found
         500: Internal server error
     '''
-    order_id = request.json['order_id']
 
     if type(order_id) != int:
         return abort(400, "Invalid order_id")
@@ -1240,10 +1220,10 @@ def refund(order_id):
         if order is None:
             return abort(404, "Order not found")
         
-        order.status = "refunded"
+        order.status = OrderStatus.REFUNDED
 
         log_details = f'Refunded order {order.order_id}'
-        log = Log(user_id=order.customer_id, timestamp=datetime.now(), details=log_details, action='REFUND ORDER')
+        log = Log(user_id=order.customer_id, timestamp=datetime.datetime.now(), details=log_details, action='REFUND ORDER')
         
         db.session.add(log)
         db.session.commit()
@@ -1261,13 +1241,11 @@ def cancel_order(order_id):
         order_id (int)
 
     Returns:
-        200: Order canceled successfully
+        200: Order cancelled successfully
         400: Bad request
         404: Order not found
         500: Internal server error
     '''
-    
-    order_id = request.json['order_id']
 
     if type(order_id) != int:
         return abort(400, "Invalid order_id")
@@ -1277,16 +1255,17 @@ def cancel_order(order_id):
         if order is None:
             return abort(404, "Order not found")
         
-        order.status = "canceled"
+        order.status = OrderStatus.CANCELLED
         
-        log_details = f'Canceled order {order.order_id}'
-        log = Log(user_id=order.customer_id, timestamp=datetime.now(), details=log_details, action='CANCEL ORDER')
+        log_details = f'Cancelled order {order.order_id}'
+        log = Log(user_id=order.customer_id, timestamp=datetime.datetime.now(), details=log_details, action='CANCEL ORDER')
         
         db.session.add(log)
         db.session.commit()
         
         return jsonify(order_schema.dump(order)), 200
-    except:
+    except Exception as e:
+        print(e)
         return abort(500, "Internal server error")
     
 @app.route('/replace-order/<int:order_id>', methods=['POST'])
@@ -1303,7 +1282,6 @@ def replace_order(order_id):
         404: Order not found
         500: Internal server error
     '''
-    order_id = request.json['order_id']
 
     if type(order_id) != int:
         return abort(400, "Invalid order_id")
@@ -1313,18 +1291,22 @@ def replace_order(order_id):
         if order is None:
             return abort(404, "Order not found")
         
-        order.status = "replaced"
+        order.status = OrderStatus.CANCELLED
 
-        ## PLACE NEW ORDER HERE
+        # Place new order
+
+        new_order = Order(customer_id=order.customer_id, status=OrderStatus.PENDING, total_amount=order.total_amount, created_at=datetime.datetime.now(), updated_at=datetime.datetime.now())
+        db.session.add(new_order)
         
         log_details = f'Replaced order {order.order_id}'
-        log = Log(user_id=order.customer_id, timestamp=datetime.now(), details=log_details, action='REPLACE ORDER')
+        log = Log(user_id=order.customer_id, timestamp=datetime.datetime.now(), details=log_details, action='REPLACE ORDER')
         
         db.session.add(log)
         db.session.commit()
         
         return jsonify(order_schema.dump(order)), 200
-    except:
+    except Exception as e:
+        print(e)
         return abort(500, "Internal server error")
     
 @app.route('/inventory-report', methods=['POST'])

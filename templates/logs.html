@@ -35,26 +35,6 @@
 <body>
     <h1>Logs Management</h1>
 
-    <!-- Section: Filters -->
-    <div class="form-section">
-        <h2>Filter Logs</h2>
-        <form id="filterForm">
-            <label for="admin_id">Admin ID:</label>
-            <input type="text" id="admin_id" name="admin_id">
-
-            <label for="start_date">Start Date:</label>
-            <input type="date" id="start_date" name="start_date">
-
-            <label for="end_date">End Date:</label>
-            <input type="date" id="end_date" name="end_date">
-
-            <label for="action">Action:</label>
-            <input type="text" id="action" name="action" placeholder="e.g., CREATE ADMIN, DELETE PRODUCT">
-
-            <button type="button" onclick="fetchLogs()">Apply Filters</button>
-        </form>
-    </div>
-
     <!-- Section: Logs List -->
     <div>
         <h2>Logs List</h2>
@@ -77,24 +57,13 @@
 
     <script>
         async function fetchLogs() {
-            const token = prompt("Enter your JWT token:");
-            const adminId = document.getElementById("admin_id").value;
-            const startDate = document.getElementById("start_date").value;
-            const endDate = document.getElementById("end_date").value;
-            const action = document.getElementById("action").value;
+            const token = document.cookie.split('; ').find(row => row.startsWith('token=')).split('=')[1];
 
-            const queryParams = [];
-            if (adminId) queryParams.push(`admin_id=${adminId}`);
-            if (startDate) queryParams.push(`start_date=${startDate}`);
-            if (endDate) queryParams.push(`end_date=${endDate}`);
-            if (action) queryParams.push(`action=${action}`);
-            const queryString = queryParams.length ? `?${queryParams.join("&")}` : "";
-
-            const response = await fetch(`/logs${queryString}`, {
-                method: 'GET',
+            const response = await fetch(`http://127.0.0.1:5000/logs`, {
+                method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`
-                }
+                },
             });
 
             const tableBody = document.querySelector("#logsTable tbody");

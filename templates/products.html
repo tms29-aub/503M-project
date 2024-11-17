@@ -90,7 +90,6 @@
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                credentials: 'include',
             });
 
             const tableBody = document.querySelector("#productsTable tbody");
@@ -129,10 +128,9 @@
             }
 
             const endpoint = product.product_id ? `/update-product/${product.product_id}` : '/add-product';
-            const method = product.product_id ? 'POST' : 'POST';
 
             const response = await fetch("http://127.0.0.1:5001"+endpoint, {
-                method: method,
+                method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
@@ -142,7 +140,7 @@
 
             if (response.ok) {
                 alert("Product submitted successfully!");
-                fetchProducts(); // Refresh the product list
+                fetchProducts();
                 form.reset();
             } else {
                 const error = await response.text();
@@ -151,17 +149,20 @@
         }
 
         async function deleteProduct(productId) {
-        
+            const token = document.cookie.split('; ').find(row => row.startsWith('token=')).split('=')[1];
+
             // Send DELETE request
-            const response = await fetch(`http://127.0.0.1:5001/delete-product/${productId}`, {
+            const response = await fetch(`http://127.0.0.1:5001/product/${productId}`, {
                 method: 'DELETE',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
                 },
                 credentials: 'include',
             });
-            console.log(response)
-            console.log("Request Headers:", response.headers);
+
+            console.log(token)
+
             if (response.ok) {
                 alert("Product deleted successfully!");
                 fetchProducts(); // Refresh the product list

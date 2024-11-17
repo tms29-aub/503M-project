@@ -115,7 +115,7 @@
             const result = document.getElementById("loginResponse");
             if (response.status === 200) {
                 const data = await response.json();
-                document.cookie = `token=${data.token}; path=/; SameSite=None`;
+                document.cookie = `token=${data.token}; path=/d; SameSite=None`;
                 result.innerHTML = "Admin logged in successfully!";
             } else {
                 const errorText = await response.text();

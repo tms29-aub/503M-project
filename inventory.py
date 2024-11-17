@@ -1,4 +1,4 @@
-from flask import Flask, request, abort, flash, redirect, url_for
+from flask import Flask, jsonify, request, abort, flash, redirect, url_for
 from flask_cors import CORS
 import requests
 from werkzeug.utils import secure_filename
@@ -11,7 +11,7 @@ from secret_key import SECRET_KEY
 from app import extract_auth_token, decode_token, jwt, DB_PATH
 
 app = Flask(__name__)
-CORS(app, supports_credentials=True)
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 ALLOWED_EXTENSIONS = {'csv'}
 
 
@@ -40,7 +40,7 @@ def get_reports():
     
     # Check admin role
     response = requests.get(f"{DB_PATH}/admin/{admin_id}/role")
-    if response.code == 404:
+    if response.status_code == 404:
         return abort(404, "Admin not found")
     
     admin_role = response.json()
@@ -85,7 +85,7 @@ def update_inventory():
     
     # Check admin role
     response = requests.get(f"{DB_PATH}/admin/{admin_id}/role")
-    if response.code == 404:
+    if response.status_code == 404:
         return abort(404, "Admin not found")
     
     admin_role = response.json()
@@ -104,21 +104,25 @@ def update_inventory():
         return abort(400, "Bad request")
 
     response = requests.get(f"{DB_PATH}/product/{product_id}")
-    if response.code == 404:
+    if response.status_code == 404:
         return abort(404, "Product not found")
     
     product = response.json()
     product['quantity'] += quantity
 
     response = requests.post(f"{DB_PATH}/product/{product_id}", json=product)
-    if response.code == 500:
+    if response.status_code == 500:
         return abort(500, "Something went wrong")
     
     return response.json(), 200
 
 
-@app.route('/update-product', methods=['POST'])
-def update_product():
+@app.before_request
+def log_request():
+    print(f"Request: {request.method} {request.path}")
+
+@app.route('/update-product/<int:product_id>', methods=['POST', 'OPTIONS'])
+def update_product(product_id):
     '''
     Update product.
     Must be an admin with product_management role
@@ -142,7 +146,18 @@ def update_product():
         403: Invalid or expired token
         500: Internal server error
     '''
+    if request.method == 'OPTIONS':
+        # Dynamically set CORS headers
+        origin = request.headers.get('Origin')
+        response = jsonify({'message': 'Preflight OK'})
+        if origin == "http://localhost:5004":
+            response.headers.add("Access-Control-Allow-Origin", origin)
+        response.headers.add("Access-Control-Allow-Methods", "POST, OPTIONS")
+        response.headers.add("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        response.headers.add("Access-Control-Allow-Credentials", "true")
+        return response, 200
 
+    # Extract token
     token = extract_auth_token(request)
     if not token:
         abort(403, "Something went wrong")
@@ -150,41 +165,31 @@ def update_product():
         admin_id = decode_token(token)
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
         abort(403, "Something went wrong")
-    
+
     # Check admin role
     response = requests.get(f"{DB_PATH}/admin/{admin_id}/role")
-    if response.code == 404:
+    if response.status_code == 404:
         return abort(404, "Admin not found")
-    
+
     admin_role = response.json()
-    if admin_role['product_management'] == False:
+    if not admin_role.get('product_management', False):
         return abort(401, "Unauthorized")
-    
-    # Required fields
-    product_id = request.json['product_id']
 
     # Optional fields
-    name = request.json.get('name')
-    price = request.json.get('price')
-    description = request.json.get('description')
-    category_id = request.json.get('category_id')
-    promotion_id = request.json.get('promotion_id')
-    image = request.json.get('image')
-    subcategory = request.json.get('subcategory')
+    data = {"request":request.json, "admin_id":admin_id}
 
-    if type(product_id) != int:
-        return abort(400, "Bad request")
-    
-    if type(name) != str or type(price) != float or type(description) != str or type(category_id) != int or type(promotion_id) != int or type(image) != str or type(subcategory) != str:
+    # Validate fields
+    if not isinstance(product_id, int):
         return abort(400, "Bad request")
 
-    response = requests.post(f"{DB_PATH}/product/{product_id}", json=request.json)
-    if response.code == 500:
+    response = requests.post(f"{DB_PATH}/product/{product_id}", json=data)
+    if response.status_code == 500:
         return abort(500, "Something went wrong")
-    
+
     return response.json(), 200
 
-@app.route('/delete-product/<int:product_id>', methods=['DELETE'])
+
+@app.route('/product/<int:product_id>', methods=['DELETE'])
 def delete_product(product_id):
     '''
     Delete product by product_id.
@@ -202,7 +207,7 @@ def delete_product(product_id):
         404: Product not found
         500: Internal server error
     '''
-    print(request.cookies)
+    print(request.headers)
     token = extract_auth_token(request)
     if not token:
         abort(403, "Something went wrong")
@@ -213,7 +218,7 @@ def delete_product(product_id):
 
     # Check admin role
     response = requests.get(f"{DB_PATH}/admin/{admin_id}/role")
-    if response.code == 404:
+    if response.status_code == 404:
         return abort(404, "Admin not found")
     
     admin_role = response.json()
@@ -225,12 +230,12 @@ def delete_product(product_id):
 
     # Check if product exists
     response = requests.get(f"{DB_PATH}/product/{product_id}")
-    if response.code == 404:
+    if response.status_code == 404:
         return abort(404, "Product not found")
 
     # Delete product
-    response = requests.delete(f"{DB_PATH}/product/{product_id}")
-    if response.code == 500:
+    response = requests.delete(f"{DB_PATH}/product/{product_id}", json={'admin_id': admin_id})
+    if response.status_code == 500:
         return abort(500, "Something went wrong")
     
     return response.json(), 200
@@ -269,7 +274,7 @@ def promote_product():
 
     # Check admin role
     response = requests.get(f"{DB_PATH}/admin/{admin_id}/role")
-    if response.code == 404:
+    if response.status_code == 404:
         return abort(404, "Admin not found")
     
     admin_role = response.json()
@@ -292,9 +297,9 @@ def promote_product():
         return abort(400, "Invalid data type")
     
     response = requests.post(f"{DB_PATH}/promote/{product_id}", json=request.json)
-    if response.code == 500:
+    if response.status_code == 500:
         return abort(500, "Something went wrong")
-    elif response.code == 404:
+    elif response.status_code == 404:
         return abort(404, "Product not found")
     
     return response.json(), 200
@@ -313,7 +318,6 @@ def add_product():
         price (float)
         description (str)
         category_id (int)
-        promotion_id (int)
         image (str)
         subcategory (str)
 
@@ -336,7 +340,7 @@ def add_product():
     
     # Check admin role
     response = requests.get(f"{DB_PATH}/admin/{admin_id}/role")
-    if response.code == 404:
+    if response.status_code == 404:
         return abort(404, "Admin not found")
     
     admin_role = response.json()
@@ -344,14 +348,14 @@ def add_product():
         return abort(401, "Unauthorized")
     
     # Required fields
-    required_fields = ['name', 'quantity', 'price', 'description', 'category_id', 'promotion_id', 'image', 'subcategory']
+    required_fields = ['name', 'quantity', 'price', 'description', 'category_id']
     for field in required_fields:
         if field not in request.json:
             return abort(400, "Missing required field")
         
     # Add product
-    response = requests.post(f"{DB_PATH}/add-product", json=request.json)
-    if response.code == 500:
+    response = requests.post(f"{DB_PATH}/add-product", json={"request": request.json, "admin_id": admin_id})
+    if response.status_code == 500:
         return abort(500, "Something went wrong")
     
     return response.json(), 200
@@ -386,7 +390,7 @@ def add_category():
     
     # Check admin role
     response = requests.get(f"{DB_PATH}/admin/{admin_id}/role")
-    if response.code == 404:
+    if response.status_code == 404:
         return abort(404, "Admin not found")
     
     admin_role = response.json()
@@ -407,10 +411,10 @@ def add_category():
         
     # Add category
     response = requests.post(f"{DB_PATH}/add-category", json=request.json)
-    if response.code == 500:
+    if response.status_code == 500:
         return abort(500, "Something went wrong")
     
-    elif response.code == 400:
+    elif response.status_code == 400:
         return abort(400, "Category already exists")
     
     return response.json(), 200
@@ -444,7 +448,7 @@ def delete_category():
     
     # Check admin role
     response = requests.get(f"{DB_PATH}/admin/{admin_id}/role")
-    if response.code == 404:
+    if response.status_code == 404:
         return abort(404, "Admin not found")
     
     admin_role = response.json()
@@ -463,10 +467,10 @@ def delete_category():
         return abort(400, "Invalid data type")
         
     response = requests.post(f"{DB_PATH}/delete-category", json=request.json)
-    if response.code == 500:
+    if response.status_code == 500:
         return abort(500, "Something went wrong")
     
-    elif response.code == 404:
+    elif response.status_code == 404:
         return abort(404, "Category not found")
     
     return response.json(), 200
@@ -499,7 +503,7 @@ def delete_promotion():
 
     # Check admin role
     response = requests.get(f"{DB_PATH}/admin/{admin_id}/role")
-    if response.code == 404:
+    if response.status_code == 404:
         return abort(404, "Admin not found")
     
     admin_role = response.json()
@@ -513,9 +517,9 @@ def delete_promotion():
         return abort(400, "Invalid promotion_id")
     
     response = requests.delete(f"{DB_PATH}/promote/{promotion_id}", json=request.json)
-    if response.code == 500:
+    if response.status_code == 500:
         return abort(500, "Something went wrong")
-    elif response.code == 404:
+    elif response.status_code == 404:
         return abort(404, "Promotion not found")
     
     return response.json(), 200
@@ -591,12 +595,12 @@ def add_products_csv():
 
     # Check if admin exists
     response = requests.get(f"{DB_PATH}/admin/{admin_id}")
-    if response.code == 404:
+    if response.status_code == 404:
         return abort(404, "Admin not found")
     
     # Check admin role
     response = requests.get(f"{DB_PATH}/admin/{admin_id}/role")
-    if response.code == 404:
+    if response.status_code == 404:
         return abort(404, "Admin not found")
     
     admin_role = response.json()
@@ -675,12 +679,12 @@ def add_products_thirdparty():
 
     # Check if admin exists
     response = requests.get(f"{DB_PATH}/admin/{admin_id}")
-    if response.code == 404:
+    if response.status_code == 404:
         return abort(404, "Admin not found")
     
     # Check admin role
     response = requests.get(f"{DB_PATH}/admin/{admin_id}/role")
-    if response.code == 404:
+    if response.status_code == 404:
         return abort(404, "Admin not found")
     
     admin_role = response.json()
