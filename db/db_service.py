@@ -430,7 +430,7 @@ def add_admin():
         admin = Admin(name=name, email=email, password=password, phone=phone)
 
         log_detail = f'{admin.name} is now an admin'
-        log = Log(user_id=admin.admin_id, timestamp=datetime.now(), details=log_detail, action='CREATE ADMIN')
+        log = Log(user_id=admin.admin_id, timestamp=datetime.datetime.now(), details=log_detail, action='CREATE ADMIN')
         
         db.session.add(admin)
         db.session.add(log)
@@ -1018,7 +1018,7 @@ def get_orders():
         print(e)
         print("here")
         return abort(500, "Something went wrong")
-    
+
 
 @app.route('/order/<int:order_id>', methods=['GET'])
 def get_order(order_id):
@@ -1309,6 +1309,45 @@ def replace_order(order_id):
         print(e)
         return abort(500, "Internal server error")
     
+
+@app.route('/return-order/<int:order_id>', methods=['POST'])
+def return_order(order_id):
+    '''
+    Return order by order_id.
+
+    Requires:
+        order_id (int)
+
+    Returns:
+        200: Order returned successfully
+        400: Bad request
+        404: Order not found
+        500: Internal server error
+    '''
+
+    if type(order_id) != int:
+        return abort(400, "Invalid order_id")
+    
+    try:
+        order = Order.query.filter_by(order_id=order_id).first()
+        
+        if order is None:
+            return abort(404, "Order not found")
+        
+        order.status = OrderStatus.RETURNED
+
+        log_details = f'Returned order {order.order_id}'
+        log = Log(user_id=order.customer_id, timestamp=datetime.datetime.now(), details=log_details, action='RETURN ORDER')
+        
+        db.session.add(log)
+        db.session.commit()
+        
+        return jsonify(order_schema.dump(order)), 200
+    except Exception as e:
+        print(e)
+        return abort(500, "Internal server error")
+
+
 @app.route('/inventory-report', methods=['POST'])
 def generate_inventory_report():
     '''
@@ -1324,7 +1363,7 @@ def generate_inventory_report():
         order_items = OrderItem.query.all()
 
         if not products or not order_items:
-            return jsonify({"message": "No data available for generating reports"}), 400
+            return abort(400, "No products or order items found")
 
         # Calculate total sales for each product
         sales_data = {}
@@ -1351,7 +1390,7 @@ def generate_inventory_report():
 
             report_data.append({
                 "product_id": product.product_id,
-                "report_date": datetime.now(),
+                "report_date": datetime.datetime.now(),
                 "turnover_rate": turnover_rate,
                 "demand_forecast": int(demand_forecast),
                 "most_popular": "Yes" if product.product_id == most_popular_product_id else "No"
@@ -1365,7 +1404,8 @@ def generate_inventory_report():
         return jsonify({
             "message": "Reports generated successfully",
             "most_popular_product": most_popular_name,
-            "most_popular_sales": sales_data[most_popular_product_id]
+            "most_popular_sales": sales_data[most_popular_product_id],
+            "report": report_data
         }), 200
     
     except Exception as e:

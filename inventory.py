@@ -771,7 +771,7 @@ def generate_inventory_reports():
     if not admin_role.get('reports', False):
         return abort(401, "Unauthorized")
     
-    response = requests.post(f"{DB_PATH}/generate-inventory-reports")
+    response = requests.post(f"{DB_PATH}/inventory-report")
     if response.status_code != 200:
         return abort(500, "Something went wrong")
     

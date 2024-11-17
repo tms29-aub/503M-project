@@ -35,19 +35,12 @@
 <body>
     <h1>Reports Management</h1>
 
-    <!-- Section: Filters -->
-    <div class="form-section">
-        <h2>Filter Reports</h2>
-        <form id="filterForm">
-            <label for="product_id">Product ID:</label>
-            <input type="text" id="product_id" name="product_id">
-
-            <label for="report_date">Report Date:</label>
-            <input type="date" id="report_date" name="report_date">
-
-            <button type="button" onclick="fetchReports()">Apply Filters</button>
-        </form>
+    <div id="mostPopularProduct">
+        <h2>Most Popular Product</h2>
+        <p><strong>Product Name:</strong> <span id="popularProductName">N/A</span></p>
+        <p><strong>Total Sales:</strong> <span id="popularProductSales">N/A</span></p>
     </div>
+    
 
     <!-- Section: Reports List -->
     <div>
@@ -72,43 +65,61 @@
 
     <script>
         async function fetchReports() {
-            const token = prompt("Enter your JWT token:");
-            const productId = document.getElementById("product_id").value;
-            const reportDate = document.getElementById("report_date").value;
-
-            const queryParams = [];
-            if (productId) queryParams.push(`product_id=${productId}`);
-            if (reportDate) queryParams.push(`report_date=${reportDate}`);
-            const queryString = queryParams.length ? `?${queryParams.join("&")}` : "";
-
-            const response = await fetch(`/reports${queryString}`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-
-            const tableBody = document.querySelector("#reportsTable tbody");
-            tableBody.innerHTML = ""; // Clear the table
-
-            if (response.ok) {
-                const reports = await response.json();
-                reports.forEach(report => {
-                    const row = document.createElement("tr");
-                    row.innerHTML = `
-                        <td>${report.report_id}</td>
-                        <td>${report.product_id}</td>
-                        <td>${report.turnover_rate.toFixed(2)}</td>
-                        <td>${report.demand_forecast}</td>
-                        <td>${report.most_popular}</td>
-                        <td>${new Date(report.report_date).toLocaleDateString()}</td>
-                    `;
-                    tableBody.appendChild(row);
-                });
-            } else {
-                alert("Failed to fetch reports.");
+            const tokenCookie = document.cookie.split('; ').find(row => row.startsWith('token='));
+            if (!tokenCookie) {
+                alert('Authentication token is missing. Please log in.');
+                return;
             }
-        }
+            const token = tokenCookie.split('=')[1];
+            try {
+                const response = await fetch(`http://127.0.0.1:5001/generate-inventory-reports`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json',
+                    }
+                });
+        
+                const tableBody = document.querySelector("#reportsTable tbody");
+                tableBody.innerHTML = ""; // Clear the table
+        
+                if (response.ok) {
+                    const data = await response.json();
+        
+                    // Check if elements exist
+                    const productNameElement = document.getElementById("popularProductName");
+                    const productSalesElement = document.getElementById("popularProductSales");
+        
+                    if (productNameElement && productSalesElement) {
+                        productNameElement.innerText = data.most_popular_product || "N/A";
+                        productSalesElement.innerText = data.most_popular_sales || "N/A";
+                    } else {
+                        console.error("One or more target elements are missing from the DOM.");
+                    }
+        
+                    // Populate the reports table
+                    const reportsArray = data.report;
+                    reportsArray.forEach(report => {
+                        const row = document.createElement("tr");
+                        row.innerHTML = `
+                            <td>${report.product_id || 'N/A'}</td>
+                            <td>${new Date(report.report_date).toLocaleDateString() || 'N/A'}</td>
+                            <td>${report.turnover_rate ? report.turnover_rate.toFixed(2) : 'N/A'}</td>
+                            <td>${report.demand_forecast || 'N/A'}</td>
+                            <td>${report.most_popular}</td>
+                        `;
+                        tableBody.appendChild(row);
+                    });
+                } else {
+                    const errorMessage = await response.text();
+                    alert(`Failed to fetch reports: ${errorMessage}`);
+                }
+            } catch (error) {
+                console.error('Error fetching reports:', error);
+                alert('An unexpected error occurred. Please try again later.');
+            }
+        }        
+        
     </script>
 </body>
 </html>
