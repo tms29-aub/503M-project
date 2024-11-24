@@ -27,6 +27,9 @@
         <label for="inventory_management">Inventory Management:</label>
         <input type="checkbox" id="inventory_management" name="inventory_management"><br>
 
+        <label for="admin_management">Admin Management:</label>
+        <input type="checkbox" id="admin_management" name="admin_management"><br>
+
         <label for="order_management">Order Management:</label>
         <input type="checkbox" id="order_management" name="order_management"><br>
 
@@ -66,20 +69,24 @@
                 product_management: formData.has("product_management"),
                 customer_management: formData.has("customer_management"),
                 customer_support: formData.has("customer_support"),
+                admin_management: formData.has("admin_management"),
                 logs: formData.has("logs"),
                 reports: formData.has("reports"),
             };
 
-            const token = prompt("Please enter your JWT token:");
+            const token = document.cookie.split('; ').find(row => row.startsWith('token=')).split('=')[1];
 
-            const response = await fetch('/create-admin', {
+            const response = await fetch('http://127.0.0.1:5000/create-admin', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify(data)
+                body: JSON.stringify(data),
+                credentials: 'include'
             });
+
+            console.log(JSON.stringify(data))
 
             const result = document.getElementById("createAdminResponse");
             if (response.status === 201) {

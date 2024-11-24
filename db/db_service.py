@@ -429,16 +429,19 @@ def add_admin():
     try:
         admin = Admin(name=name, email=email, password=password, phone=phone)
 
+        db.session.add(admin)
+        db.session.commit()
+
         log_detail = f'{admin.name} is now an admin'
         log = Log(user_id=admin.admin_id, timestamp=datetime.datetime.now(), details=log_detail, action='CREATE ADMIN')
         
-        db.session.add(admin)
         db.session.add(log)
         db.session.commit()
         
         return admin_schema.dump(admin), 201
-    except:
-        return abort(400, "Server Error")
+    except Exception as e:
+        print(e)
+        return abort(500, "Server Error")
 
 
 # AdminRole routes
@@ -457,6 +460,7 @@ def add_admin_role():
         customer_management (bool)
         inventory_management (bool)
         reports (bool)
+        admin_management (bool)
 
     Returns:
         201: Admin Role created successfully
@@ -464,10 +468,12 @@ def add_admin_role():
         500: Internal server error
     '''
 
-    required_fields = ['admin_id', 'customer_support', 'logs', 'product_management', 'order_management', 'customer_management', 'inventory_management', 'reports']
+    required_fields = ['admin_id', 'customer_support', 'logs', 'product_management', 'order_management', 'customer_management', 'inventory_management', 'reports', 'admin_management']
 
     if not all(field in request.json for field in required_fields):
         return abort(400, "Bad request")
+    
+    print(request.json)
     
     admin_id = request.json['admin_id']
     customer_support = request.json['customer_support']
@@ -476,31 +482,36 @@ def add_admin_role():
     order_management = request.json['order_management']
     customer_management = request.json['customer_management']
     inventory_management = request.json['inventory_management']
+    admin_management = request.json['admin_management']
     reports = request.json['reports']
 
-    if type(admin_id) != int or type(customer_support) != bool or type(logs) != bool or type(product_management) != bool or type(order_management) != bool or type(customer_management) != bool or type(inventory_management) != bool or type(reports) != bool:
+    if type(admin_id) != int or type(customer_support) != bool or type(logs) != bool or type(product_management) != bool or type(order_management) != bool or type(customer_management) != bool or type(inventory_management) != bool or type(reports) != bool or type(admin_management) != bool:
         return abort(400, "Bad request")
+    try: 
+        admin_role = AdminRole(
+            admin_id=admin_id,
+            customer_support=customer_support,
+            logs=logs,
+            product_management=product_management,
+            order_management=order_management,
+            customer_management=customer_management,
+            inventory_management=inventory_management,
+            reports=reports,
+            admin_management = admin_management
+        )
+        db.session.add(admin_role)
 
-    admin_role = AdminRole(
-        admin_id=admin_id,
-        customer_support=customer_support,
-        logs=logs,
-        product_management=product_management,
-        order_management=order_management,
-        customer_management=customer_management,
-        inventory_management=inventory_management,
-        reports=reports
-    )
-    db.session.add(admin_role)
+        admin = Admin.query.filter_by(admin_id=admin_id).first()
 
-    admin = Admin.query.filter_by(admin_id=admin_id).first()
-
-    log_details = f'{admin.name} roles updated'
-    log = Log(user_id=admin.admin_id, timestamp=datetime.now(), details=log_details, action='UPDATE ADMIN ROLES')
-    db.session.add(log)
-    
-    db.session.commit()
-    return admin_role_schema.dump(admin_role), 201
+        log_details = f'{admin.name} roles updated'
+        log = Log(user_id=admin.admin_id, timestamp=datetime.datetime.now(), details=log_details, action='UPDATE ADMIN ROLES')
+        db.session.add(log)
+        
+        db.session.commit()
+        return admin_role_schema.dump(admin_role), 201
+    except Exception as e:
+        print(e)
+        abort(500, "Server Error")
 
 def create_tables_and_populate():
     """Create tables and populate with initial data."""

@@ -38,7 +38,7 @@ def reports_page():
     
     return render_template('reports.html')
 
-@app.route('/create_admin', methods=['GET'])
+@app.route('/create-admin', methods=['GET'])
 def create_admin_page():
     return render_template('create_admin.html')
 

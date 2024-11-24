@@ -56,20 +56,16 @@ def create_admin():
         admin_id = decode_token(token)
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
         abort(403, "Something went wrong")
-        
-    response = requests.get(f"{DB_PATH}/admin/{admin_id}")
-    if response.code == 404:
-        return abort(404, "Admin not found")
     
     response = requests.get(f"{DB_PATH}/admin/{admin_id}/role")
-    if response.code == 404:
+    if response.status_code == 404:
         return abort(404, "Admin not found")
     
     admin_role = response.json()
     if admin_role['admin_management'] == False:
         return abort(401, "Unauthorized")
 
-    required_fields = ['name', 'email', 'phone', 'password', 'inventory_management', 'order_management', 'product_management', 'customer_management', 'customer_support', 'logs', 'reports']
+    required_fields = ['name', 'email', 'phone', 'password', 'inventory_management', 'order_management', 'product_management', 'customer_management', 'customer_support', 'logs', 'reports', 'admin_management']
     # Check if all required fields are present
     if not all(field in request.json for field in required_fields):
         return abort(400, "Bad request")
@@ -80,6 +76,7 @@ def create_admin():
     phone = request.json['phone']
     password = request.json['password']
     inventory_management = request.json['inventory_management']
+    admin_management = request.json['admin_management']
     order_management = request.json['order_management']
     product_management = request.json['product_management']
     customer_management = request.json['customer_management']
@@ -87,10 +84,10 @@ def create_admin():
     logs = request.json['logs']
     reports = request.json['reports']
 
-    if type(name) != str or type(email) != str or type(phone) != int or type(password) != str:
+    if type(name) != str or type(email) != str or type(phone) != str or type(password) != str:
         return abort(400, "Bad request")
     
-    if type(inventory_management) != bool or type(order_management) != bool or type(product_management) != bool or type(customer_management) != bool or type(customer_support) != bool or type(logs) != bool or type(reports) != bool:
+    if type(inventory_management) != bool or type(order_management) != bool or type(product_management) != bool or type(customer_management) != bool or type(customer_support) != bool or type(logs) != bool or type(reports) != bool or type(admin_management) != bool:
         return abort(400, "Bad request")
 
     # Check if admin with email already exists
@@ -100,16 +97,17 @@ def create_admin():
 
     # Create new admin
     try:
-        response = requests.post(f'{DB_PATH}/add/admin', json={'name': name, 'email': email, 'phone': phone, 'password': password})
+        response = requests.post(f'{DB_PATH}/add-admin', json={'name': name, 'email': email, 'phone': int(phone), 'password': password})
 
         if response.status_code != 201:
             return abort(500, "Something went wrong")
         
-        admin_id = response.get('id')
+        admin_id = response.json().get('admin_id')
         response = requests.post(f'{DB_PATH}/add-admin-role', json={
             "admin_id": admin_id,
             "customer_support": customer_support,
             "logs": logs,
+            "admin_management": admin_management,
             "product_management": product_management,
             "order_management": order_management,
             "customer_management": customer_management,
@@ -123,6 +121,7 @@ def create_admin():
         return {'message': "Admin created successfully"}, 201
 
     except Exception as e:
+        print(e)
         return abort(500, "Something went wrong")
 
 
@@ -203,4 +202,4 @@ def login():
     return {'token': token}, 200
 
 if __name__ == "__main__":
-    app.run(port=5000)
+    app.run(port=5000, debug=True)
